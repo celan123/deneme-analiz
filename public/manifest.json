@@ -1,0 +1,18 @@
+{
+  "name": "ARMA LİG — Deneme Analiz",
+  "short_name": "ARMA LİG",
+  "description": "Çevrimiçi deneme sınavı, bekleme odası ve kazanım analiz platformu",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

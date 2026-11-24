@@ -1,0 +1,252 @@
+[
+{
+"id": "MAT5-U1-001",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.1",
+"kazanimAdi": "Temel geometrik çizimler için matematiksel araç ve teknolojiden yararlanabilme",
+"zorluk": "Kolay",
+"soruMetni": "Bir beden eğitimi öğretmeni, okul bahçesine basketbol sahasının orta dairesini çizmek için 180 cm uzunluğundaki bir ipin bir ucunu yerdeki sabit bir noktaya tutturuyor. Diğer ucuna tebeşir bağlayarak ipi gergin tutuyor ve sabit nokta etrafında tam bir tur dönerek bir çember çiziyor. Bu çizim yöntemiyle oluşturulan çember hakkında aşağıdaki ifadelerden hangisi doğrudur?",
+"gorselGerekliMi": false,
+"svgKodu": null,
+"secenekler": {
+"A": "Çemberin çapı 180 cm'dir.",
+"B": "Çemberin yarıçapı 90 cm'dir.",
+"C": "Çemberin çapı 360 cm'dir.",
+"D": "Çember üzerinde merkeze 180 cm'den daha yakın noktalar vardır."
+},
+"dogruCevap": "C",
+"cozum": "Sabitlenen uç çemberin merkezini, gergin tutulan 180 cm'lik ip ise çemberin yarıçapını oluşturur. Çemberin çapı yarıçapının 2 katı olduğundan çap = 2 × 180 = 360 cm olur.",
+"celdiriciAnalizi": {
+"A": "Pergel açıklığı veya gergin ip uzunluğu olan yarıçapı, çemberin çapı ile karıştırmaktadır.",
+"B": "Verilen 180 cm uzunluğunu çap sanarak yarıçapı bulmak için ikiye bölmüştür.",
+"D": "Çember ile daire kavramlarını karıştırarak iç bölgedeki noktaları da çemberin üzerinde sanmaktadır."
+}
+},
+{
+"id": "MAT5-U1-002",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.2",
+"kazanimAdi": "Temel geometrik çizimlere dayalı deneyimlerini yansıtabilme",
+"zorluk": "Kolay",
+"soruMetni": "Bir harita uygulamasında düz bir demiryolu hattı planlayan mühendis, harita üzerinde işaretlenmiş birbirinden farklı A ve B istasyonlarından geçen doğrusal bir hat çizmek istiyor. Mühendisin temel geometrik çizim ilkelerine göre yapabileceği çıkarımlardan hangisi kesinlikle doğrudur?",
+"gorselGerekliMi": false,
+"svgKodu": null,
+"secenekler": {
+"A": "Hem A hem de B noktasından geçen birden fazla farklı doğru çizilebilir.",
+"B": "Hem A hem de B noktasından geçen yalnızca bir tek doğru çizilebilir.",
+"C": "A noktasından başlayıp B noktasından geçerek tek yönde sonsuza uzanan hat bir doğru parçasıdır.",
+"D": "Yalnızca A noktasından geçen en fazla iki farklı doğru çizilebilir."
+},
+"dogruCevap": "B",
+"cozum": "Düzlemde birbirinden farklı iki noktadan yalnızca bir tek doğru geçer. Bu nedenle hem A hem de B noktasından geçen tek bir doğru çizilebilir.",
+"celdiriciAnalizi": {
+"A": "Tek bir noktadan sonsuz sayıda doğru geçmesi özelliğini, iki nokta için de geçerli sanmaktadır.",
+"C": "Bir ucu sabit olup diğer yönde sonsuza uzanan ışın kavramını doğru parçası ile karıştırmaktadır.",
+"D": "Bir noktadan yalnızca yatay ve dikey olmak üzere sınırlı sayıda doğru geçebileceğini düşünmektedir."
+}
+},
+{
+"id": "MAT5-U1-003",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.3",
+"kazanimAdi": "Açıları ölçmek için matematiksel araç ve teknolojiden yararlanabilme",
+"zorluk": "Orta",
+"soruMetni": "Bir marangoz, iki ahşap çıtanın oluşturduğu AOB açısını ölçmek için açıölçerin merkezini O köşesine şekildeki gibi yerleştiriyor. Açıölçer üzerinde gösterilen referans değerlerine göre m(AÔB) kaç derecedir?",
+"gorselGerekliMi": true,
+"svgKodu": "ABO0°180°180°0°90°145°35°70°110°",
+"secenekler": {
+"A": "75°",
+"B": "105°",
+"C": "110°",
+"D": "145°"
+},
+"dogruCevap": "A",
+"cozum": "Açıölçerin aynı ölçeğindeki değerler çıkarılarak açının ölçüsü bulunur. İç ölçeğe göre OA ışını 35°, OB ışını 110° üzerindedir: 110° - 35° = 75°. Dış ölçeğe göre ise 145° - 70° = 75° elde edilir.",
+"celdiriciAnalizi": {
+"B": "İki ışın için farklı ölçeklerdeki sayıları okuyup (70° + 35° = 105°) toplama yapmış veya açının bütünlerini hesaplamıştır.",
+"C": "Açının bir kolunun 0° üzerinde olmadığını fark etmeden ikinci kolun iç ölçekteki değerini (110°) doğrudan açı ölçüsü sanmıştır.",
+"D": "Açının 0°'den başladığını varsayarak OA ışınının dış ölçekteki değerini (145°) açı ölçüsü olarak okumuştur."
+}
+},
+{
+"id": "MAT5-U1-004",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.4",
+"kazanimAdi": "Düzlemde iki veya üç doğrunun birbirine göre durumuna bağlı olarak oluşabilecek açılara dair çıkarım yapabilme",
+"zorluk": "Orta",
+"soruMetni": "Bir parktaki doğrusal AB ve CD bisiklet yolları P noktasında kesişmektedir. P noktasından başlayan [PM yürüyüş yolu, AB doğrusuna dik olacak şekilde inşa edilmiştir. Şekilde m(A₽D) = 52° olarak verildiğine göre m(C₽M) kaç derecedir?",
+"gorselGerekliMi": true,
+"svgKodu": "ABCDMP52°?",
+"secenekler": {
+"A": "48°",
+"B": "52°",
+"C": "128°",
+"D": "38°"
+},
+"dogruCevap": "D",
+"cozum": "A₽D açısı ile B₽C açısı ters açılar olduğundan m(B₽C) = 52°'dir. [PM ışını AB doğrusuna dik olduğundan m(B₽M) = 180° - 90° = 90° olur. C₽M ile B₽C komşu tümler açılar olduğu için m(C₽M) = 90° - 52° = 38° bulunur.",
+"celdiriciAnalizi": {
+"A": "Tümler açıların toplamını 90° yerine 100° gibi düşünerek 100° - 52° = 48° hesaplamıştır.",
+"B": "Ters açıların eşitliğini yanlış uygulayarak 52°'nin karşısındaki komşu tümler açının da 52° olduğunu sanmıştır.",
+"C": "İstenen C₽M açısı yerine 52°'lik açının bütünleri olan A₽C açısını (180° - 52° = 128°) hesaplamıştır."
+}
+},
+{
+"id": "MAT5-U1-005",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.5",
+"kazanimAdi": "Çokgenleri düzlemde ardışık olarak kesişen doğruların oluşturduğu kapalı şekiller olarak yorumlayabilme",
+"zorluk": "Orta",
+"soruMetni": "Bir tasarım yazılımında düzlemde çizilen dört farklı şekil aşağıda numaralandırılmıştır. Çokgenlerin düzlemde en az üç doğrunun ardışık olarak kesişmesiyle oluşan kapalı şekiller olduğu bilgisine göre, verilen çizimlerden hangileri bir çokgen oluşturur?",
+"gorselGerekliMi": true,
+"svgKodu": "IIIIIIIV",
+"secenekler": {
+"A": "Yalnız I",
+"B": "I ve III",
+"C": "I ve IV",
+"D": "I, II ve IV"
+},
+"dogruCevap": "C",
+"cozum": "I numaralı şekil 4 doğrunun, IV numaralı şekil ise 5 doğrunun ardışık kesişimiyle oluşan kapalı bölgeler (dörtgen ve beşgen) olduğundan her ikisi de çokgendir. II numaralı şekilde 3 doğru tek noktada kesiştiği için kapalı bölge oluşmaz; III numaralı şeklin alt kenarı eğri olduğundan çokgen değildir.",
+"celdiriciAnalizi": {
+"A": "IV numaralı içbükey beşgeni, alışılmış dışbükey çokgenlere benzemediği için çokgen olarak kabul etmemektedir.",
+"B": "Kenarının eğri olmasına dikkat etmeden kapalı olan her şekli (III) çokgen sanmaktadır.",
+"D": "En az üç doğrunun kesişmesini yeterli görüp kapalı bölge oluşturma koşulunu (II) göz ardı etmektedir."
+}
+},
+{
+"id": "MAT5-U1-006",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.6",
+"kazanimAdi": "Çokgenlerin özellikleri ile ilgili edindiği deneyimleri yansıtabilme",
+"zorluk": "Orta",
+"soruMetni": "Bir mimar, çatı destek modelinde ABC eşkenar üçgeni ile |AC| = |CD| olacak şekilde oluşturulan ACD ikizkenar üçgenini [AC] kenarı boyunca birleştiriyor. Şekilde m(AĈD) = 40° olduğuna göre m(BÂD) kaç derecedir?",
+"gorselGerekliMi": true,
+"svgKodu": "BCAD40°",
+"secenekler": {
+"A": "100°",
+"B": "130°",
+"C": "140°",
+"D": "160°"
+},
+"dogruCevap": "B",
+"cozum": "ABC eşkenar üçgen olduğundan tüm iç açıları 60°'dir; yani m(BÂC) = 60°'dir. ACD üçgeninde |AC| = |CD| olduğu için bu eşit kenarları gören CÂD ve A D̂ C açıları eşittir. m(CÂD) = (180° - 40°) ÷ 2 = 70° olur. Buna göre m(BÂD) = 60° + 70° = 130° bulunur.",
+"celdiriciAnalizi": {
+"A": "ACD ikizkenar üçgeninde eşit olan açıları yanlış belirleyerek m(CÂD) = 40° almış ve 60° + 40° = 100° hesaplamıştır.",
+"C": "ACD üçgeninde 180° - 40° = 140° işlemini yaptıktan sonra eş açıları bulmak için ikiye bölmeyi unutmuştur.",
+"D": "ACD üçgeninde A ve C açılarını 40° alıp kalan açıyı 100° bulmuş, ardından 60° + 100° = 160° şeklinde hatalı toplama yapmıştır."
+}
+},
+{
+"id": "MAT5-U1-007",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.7",
+"kazanimAdi": "Matematiksel araç ve teknoloji yardımıyla düzlemde iki noktada kesişen çember çiftinin merkezleri ve kesişim noktalarından biri ile inşa edilen üçgenlerin kenar özelliklerine yönelik muhakeme yapabilme",
+"zorluk": "Orta",
+"soruMetni": "Bir peyzaj mimarı, bir parka A ve B merkezli iki dairesel sulama fıskiyesi yerleştiriyor. Her iki fıskiyenin de sulama çemberinin yarıçapı 5 m olup fıskiyeler arasındaki uzaklık |AB| = 7 m'dir. İki sulama çemberinin kesişim noktalarından biri C olmak üzere A, B ve C noktaları taş yollarla birleştirilerek ABC üçgeni oluşturuluyor. Oluşturulan ABC üçgeninin kenarlarına göre çeşidi ve çevresi aşağıdakilerden hangisidir?",
+"gorselGerekliMi": true,
+"svgKodu": "ABC7 m",
+"secenekler": {
+"A": "İkizkenar üçgen, 17 m",
+"B": "Eşkenar üçgen, 15 m",
+"C": "İkizkenar üçgen, 27 m",
+"D": "İkizkenar üçgen, 19 m"
+},
+"dogruCevap": "A",
+"cozum": "C noktası her iki çemberin üzerinde olduğundan |AC| uzunluğu A merkezli çemberin yarıçapına (5 m), |BC| uzunluğu ise B merkezli çemberin yarıçapına (5 m) eşittir. |AB| = 7 m olduğundan kenar uzunlukları 5 m, 5 m ve 7 m'dir. İki kenarı eşit olduğu için üçgen ikizkenardır ve çevresi 5 + 5 + 7 = 17 m'dir.",
+"celdiriciAnalizi": {
+"B": "İki çemberin yarıçapı eşit olduğu için merkezler arası uzaklığı dikkate almadan üçgenin eşkenar olacağını varsayıp 5 + 5 + 5 = 15 m hesaplamıştır.",
+"C": "|AC| ve |BC| kenar uzunluklarını yarıçap (5 m) yerine çap (10 m) olarak alıp 10 + 10 + 7 = 27 m bulmuştur.",
+"D": "Eşit kenarları çemberlerin yarıçapı yerine merkezler arası uzaklık (7 m) sanarak 7 + 7 + 5 = 19 m hesaplamıştır."
+}
+},
+{
+"id": "MAT5-U1-008",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.4",
+"kazanimAdi": "Düzlemde iki veya üç doğrunun birbirine göre durumuna bağlı olarak oluşabilecek açılara dair çıkarım yapabilme",
+"zorluk": "Zor",
+"soruMetni": "Bir robotik kodlama atölyesinde iki lazer ışını, düz bir zeminde tek bir noktada kesişerek dört açı oluşturuyor. Sensör kayıtlarına göre bu kesişimde oluşan komşu iki açının ölçülerinin farkı 36°'dir. Öğrenciler, robot kolunu bu kesişimde oluşan dar açının tümleri kadar döndürmek istiyor. Buna göre robot kolu kaç derece döndürülmelidir?",
+"gorselGerekliMi": false,
+"svgKodu": null,
+"secenekler": {
+"A": "72°",
+"B": "54°",
+"C": "108°",
+"D": "18°"
+},
+"dogruCevap": "D",
+"cozum": "İki doğrunun kesişmesiyle oluşan komşu açılar bütünlerdir, yani toplamları 180°'dir. Toplamları 180° ve farkları 36° olan açılardan küçük (dar) olanı (180° - 36°) ÷ 2 = 72°, büyük olanı ise 108°'dir. Dar açının tümleri 90° - 72° = 18° bulunur.",
+"celdiriciAnalizi": {
+"A": "Kesişimde oluşan dar açıyı (72°) doğru hesaplamış ancak sorunun istediği tümlerini alma adımını atlamıştır.",
+"B": "Komşu bütünler açıların toplamını kullanmak yerine verilen 36° farkın doğrudan tümlerini (90° - 36° = 54°) hesaplamıştır.",
+"C": "Dar açının tümlerini bulmak yerine kesişimde oluşan geniş açıyı (108°) işaretlemiştir."
+}
+},
+{
+"id": "MAT5-U1-009",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.6",
+"kazanimAdi": "Çokgenlerin özellikleri ile ilgili edindiği deneyimleri yansıtabilme",
+"zorluk": "Zor",
+"soruMetni": "Bir matematik etkinliğinde Kerem, iç açılarının ölçüleri doğal sayı olan bir ikizkenar üçgen tasarlamak istiyor. Kerem'in tasarlayacağı üçgenin bir iç açısının ölçüsü 38° olacak ve bu üçgen aynı zamanda geniş açılı bir üçgen olacaktır. Tüm koşulları sağlayan bu üçgenin en büyük iç açısının ölçüsü kaç derecedir?",
+"gorselGerekliMi": false,
+"svgKodu": null,
+"secenekler": {
+"A": "71°",
+"B": "104°",
+"C": "142°",
+"D": "128°"
+},
+"dogruCevap": "B",
+"cozum": "38°'lik açı tepe açısı olsaydı diğer iki eş açı (180° - 38°) ÷ 2 = 71° olur ve üçgen dar açılı olurdu. Geniş açılı olması için 38°'lik açı eş açılardan biri olmalıdır. Bu durumda iki eş açının toplamı 38° + 38° = 76°, en büyük iç açı ise 180° - 76° = 104° bulunur.",
+"celdiriciAnalizi": {
+"A": "38°'yi eşit olmayan tepe açısı varsayıp (180° - 38°) ÷ 2 = 71° bulmuş, üçgenin geniş açılı olma koşulunu kontrol etmemiştir.",
+"C": "Üçgenin ikizkenar olmasından dolayı 38°'lik açıdan iki tane olacağını unutup 180° - 38° = 142° hesaplamıştır.",
+"D": "Geniş açının 90°'den büyük olmasını yanlış yorumlayarak 90° + 38° = 128° şeklinde toplama yapmıştır."
+}
+},
+{
+"id": "MAT5-U1-010",
+"sinif": 5,
+"ders": "Matematik",
+"unite": "Geometrik Şekiller",
+"kazanimKodu": "MAT.5.3.7",
+"kazanimAdi": "Matematiksel araç ve teknoloji yardımıyla düzlemde iki noktada kesişen çember çiftinin merkezleri ve kesişim noktalarından biri ile inşa edilen üçgenlerin kenar özelliklerine yönelik muhakeme yapabilme",
+"zorluk": "Zor",
+"soruMetni": "Şekilde O₁ ve O₂ merkezli eş iki çember verilmiş olup her bir çember diğerinin merkezinden geçmektedir. Çemberlerin kesişim noktaları K ve L olmak üzere bu dört nokta birleştirilerek O₁KO₂L dörtgeni oluşturulmuştur. Bu iki eş çemberin çapları toplamı 24 cm olduğuna göre O₁KO₂L dörtgeninin çevresi kaç santimetredir?",
+"gorselGerekliMi": true,
+"svgKodu": "O₁O₂KL",
+"secenekler": {
+"A": "18",
+"B": "30",
+"C": "24",
+"D": "48"
+},
+"dogruCevap": "C",
+"cozum": "Eş iki çemberin çapları toplamı 24 cm ise her bir çemberin çapı 24 ÷ 2 = 12 cm, yarıçapı ise 12 ÷ 2 = 6 cm'dir. O₁KO₂L dörtgeninin tüm kenarları ([O₁K], [KO₂], [O₂L] ve [LO₁]) bu eş çemberlerin yarıçaplarına eşittir. Dolayısıyla dörtgenin çevresi 4 × 6 = 24 cm bulunur.",
+"celdiriciAnalizi": {
+"A": "Dörtgenin çevresi yerine oluşan eşkenar üçgenlerden yalnızca birinin (O₁KO₂) çevresini 3 × 6 = 18 cm olarak hesaplamıştır.",
+"B": "Dörtgenin iç bölgesinde kalan iki merkez arasındaki [O₁O₂] doğru parçasını da çevreye dahil ederek 5 × 6 = 30 cm bulmuştur.",
+"D": "Çemberin çapını (12 cm) yarıçap olarak kullanıp dörtgenin çevresini 4 × 12 = 48 cm hesaplamıştır."
+}
+}
+]

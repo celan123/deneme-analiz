@@ -1,0 +1,205 @@
+{
+  "exam": {
+    "id": "exam-2026-02",
+    "title": "8. Sınıf LGS Kapsamlı Psikometrik Analiz Denemesi",
+    "exam_date": "2026-11-19",
+    "wrong_penalty_ratio": 0.333
+  },
+"questions": [
+    {
+      "id": "q-1",
+      "exam_id": "exam-2026-02",
+      "question_number": 1,
+      "subject": "Matematik",
+      "outcome_code": "M.8.1.2.1",
+      "outcome_title": "Üslü ifadelerde temel taban ve kuvvet kurallarını uygular.",
+      "correct_option": "A",
+      "question_text": "2³ × 2⁴ işleminin sonucu aşağıdakilerden hangisidir?",
+      "options": {
+        "A": "2⁷",
+        "B": "2¹²",
+        "C": "4⁷",
+        "D": "4¹²"
+      }
+    },
+    {
+      "id": "q-2",
+      "exam_id": "exam-2026-02",
+      "question_number": 2,
+      "subject": "Matematik",
+      "outcome_code": "M.8.1.2.1",
+      "outcome_title": "Üslü ifadelerde temel taban ve kuvvet kurallarını uygular.",
+      "correct_option": "C",
+      "question_text": "(3²)⁴ ÷ 3⁵ işleminin sonucu kaçtır?",
+      "options": {
+        "A": "3",
+        "B": "9",
+        "C": "27",
+        "D": "81"
+      }
+    },
+    {
+      "id": "q-3",
+      "exam_id": "exam-2026-02",
+      "question_number": 3,
+      "subject": "Matematik",
+      "outcome_code": "M.8.1.2.2",
+      "outcome_title": "Köklü ifadelerde çarpma, bölme ve dışarı çıkarma işlemlerini yapar.",
+      "correct_option": "B",
+      "question_text": "√12 × √27 işleminin sonucu kaçtır?",
+      "options": {
+        "A": "12",
+        "B": "18",
+        "C": "24",
+        "D": "36"
+      }
+    },
+    {
+      "id": "q-4",
+      "exam_id": "exam-2026-02",
+      "question_number": 4,
+      "subject": "Matematik",
+      "outcome_code": "M.8.1.2.3",
+      "outcome_title": "Cebirsel ifadelerde özdeşlik modellerini kurar.",
+      "correct_option": "D",
+      "question_text": "(x - 3)² cebirsel ifadesinin özdeşi aşağıdakilerden hangisidir?",
+      "options": {
+        "A": "x² - 9",
+        "B": "x² - 3x + 9",
+        "C": "x² + 6x + 9",
+        "D": "x² - 6x + 9"
+      }
+    },
+    {
+      "id": "q-5",
+      "exam_id": "exam-2026-02",
+      "question_number": 5,
+      "subject": "Matematik",
+      "outcome_code": "M.8.1.2.3",
+      "outcome_title": "Cebirsel ifadelerde özdeşlik modellerini kurar.",
+      "correct_option": "A",
+      "question_text": "x² - 49 ifadesinin çarpanlarına ayrılmış biçimi aşağıdakilerden hangisidir?",
+      "options": {
+        "A": "(x - 7)(x + 7)",
+        "B": "(x - 7)²",
+        "C": "(x + 7)²",
+        "D": "(x - 49)(x + 1)"
+      }
+    },
+    {
+      "id": "q-6",
+      "exam_id": "exam-2026-02",
+      "question_number": 6,
+      "subject": "Matematik",
+      "outcome_code": "M.8.1.2.4",
+      "outcome_title": "Doğrusal denklemlerde eğim kavramını ve grafik yorumlamayı yapar.",
+      "correct_option": "C",
+      "question_text": "2y - 6x + 8 = 0 doğrusunun eğimi kaçtır?",
+      "options": {
+        "A": "-3",
+        "B": "2",
+        "C": "3",
+        "D": "6"
+      }
+    }
+  ],
+  "students": [
+    { "id": "stu-1", "full_name": "Ahmet Yılmaz", "classroom": "8-A" },
+    { "id": "stu-2", "full_name": "Zeynep Kaya", "classroom": "8-A" },
+    { "id": "stu-3", "full_name": "Mehmet Demir", "classroom": "8-A" },
+    { "id": "stu-4", "full_name": "Elif Çelik", "classroom": "8-A" },
+    { "id": "stu-5", "full_name": "Can Arslan", "classroom": "8-A" },
+    { "id": "stu-6", "full_name": "Deniz Şahin", "classroom": "8-A" },
+    { "id": "stu-7", "full_name": "Burak Koç", "classroom": "8-B" },
+    { "id": "stu-8", "full_name": "Selin Aydın", "classroom": "8-B" },
+    { "id": "stu-9", "full_name": "Kerem Yıldız", "classroom": "8-B" },
+    { "id": "stu-10", "full_name": "Ayşe Öztürk", "classroom": "8-B" },
+    { "id": "stu-11", "full_name": "Emre Polat", "classroom": "8-B" },
+    { "id": "stu-12", "full_name": "Ceren Aksoy", "classroom": "8-B" }
+  ],
+  "answers": [
+    { "exam_id": "exam-2026-02", "student_id": "stu-1", "question_id": "q-1", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-1", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-1", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-1", "question_id": "q-4", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-1", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-1", "question_id": "q-6", "selected_option": "C" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-2", "question_id": "q-1", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-2", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-2", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-2", "question_id": "q-4", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-2", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-2", "question_id": "q-6", "selected_option": "C" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-3", "question_id": "q-1", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-3", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-3", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-3", "question_id": "q-4", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-3", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-3", "question_id": "q-6", "selected_option": "C" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-4", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-4", "question_id": "q-2", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-4", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-4", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-4", "question_id": "q-5", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-4", "question_id": "q-6", "selected_option": "A" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-5", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-5", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-5", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-5", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-5", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-5", "question_id": "q-6", "selected_option": "C" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-6", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-6", "question_id": "q-2", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-6", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-6", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-6", "question_id": "q-5", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-6", "question_id": "q-6", "selected_option": "C" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-7", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-7", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-7", "question_id": "q-3", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-7", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-7", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-7", "question_id": "q-6", "selected_option": "A" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-8", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-8", "question_id": "q-2", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-8", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-8", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-8", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-8", "question_id": "q-6", "selected_option": "C" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-9", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-9", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-9", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-9", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-9", "question_id": "q-5", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-9", "question_id": "q-6", "selected_option": "A" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-10", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-10", "question_id": "q-2", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-10", "question_id": "q-3", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-10", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-10", "question_id": "q-5", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-10", "question_id": "q-6", "selected_option": "A" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-11", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-11", "question_id": "q-2", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-11", "question_id": "q-3", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-11", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-11", "question_id": "q-5", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-11", "question_id": "q-6", "selected_option": "A" },
+
+    { "exam_id": "exam-2026-02", "student_id": "stu-12", "question_id": "q-1", "selected_option": "B" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-12", "question_id": "q-2", "selected_option": "A" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-12", "question_id": "q-3", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-12", "question_id": "q-4", "selected_option": "D" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-12", "question_id": "q-5", "selected_option": "C" },
+    { "exam_id": "exam-2026-02", "student_id": "stu-12", "question_id": "q-6", "selected_option": "A" }
+  ]
+}
