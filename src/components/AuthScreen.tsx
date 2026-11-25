@@ -10,6 +10,11 @@ interface AuthScreenProps {
 type AuthMode = 'LOGIN' | 'SIGNUP';
 type SignupRole = 'student' | 'teacher';
 
+interface ClaimInviteResponse {
+  ok: boolean;
+  error?: string;
+}
+
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   onSmartboardEnter,
 }) => {
@@ -18,6 +23,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [password, setPassword] = useState<string>('');
   const [fullName, setFullName] = useState<string>('');
   const [role, setRole] = useState<SignupRole>('student');
+  const [inviteCode, setInviteCode] = useState<string>('');
   const [grade, setGrade] = useState<string>('5');
   const [schoolName, setSchoolName] = useState<string>('');
 
@@ -48,15 +54,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           throw new Error('Lütfen ad soyad bilginizi giriniz.');
         }
 
+        const normalizedCode = inviteCode.trim().toUpperCase();
+        if (role === 'teacher' && !normalizedCode) {
+          throw new Error(
+            'Öğretmen kaydı için tek kullanımlık davet kodu zorunludur.'
+          );
+        }
+
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
             data: {
               full_name: fullName.trim(),
-              role,
+              role: 'student',
               grade: role === 'student' && grade ? Number(grade) : null,
               school_name: schoolName.trim() || null,
+              invite_code: role === 'teacher' ? normalizedCode : null,
             },
           },
         });
@@ -65,9 +79,34 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
         if (!data.session) {
           setInfo(
-            'Kayıt oluşturuldu. E-posta doğrulama linkini onayladıktan sonra giriş yapabilirsiniz.'
+            role === 'teacher'
+              ? 'Kayıt oluşturuldu. E-posta doğrulama linkini onayladıktan sonra giriş yapın; davet kodunuz doğrulanarak öğretmen yetkiniz tanımlanacaktır.'
+              : 'Kayıt oluşturuldu. E-posta doğrulama linkini onayladıktan sonra giriş yapabilirsiniz.'
           );
           setMode('LOGIN');
+          return;
+        }
+
+        if (role === 'teacher' && normalizedCode) {
+          const { data: claimData, error: claimError } =
+            await supabase.rpc('claim_teacher_invite', {
+              p_code: normalizedCode,
+            });
+
+          if (claimError) {
+            setInfo(
+              'Hesabınız öğrenci olarak açıldı; ancak davet kodu doğrulanırken bir hata oluştu.'
+            );
+          } else {
+            const result = claimData as ClaimInviteResponse | null;
+            if (!result?.ok) {
+              setInfo(
+                `Hesabınız öğrenci olarak açıldı. Sebep: ${
+                  result?.error ?? 'Davet kodu geçersiz veya süresi dolmuş.'
+                }`
+              );
+            }
+          }
         }
       }
     } catch (err) {
@@ -153,7 +192,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setRole('student')}
+                    onClick={() => {
+                      setRole('student');
+                      setInviteCode('');
+                      setError(null);
+                    }}
                     className={`py-2.5 rounded-xl border-2 text-xs font-extrabold cursor-pointer transition-all ${
                       role === 'student'
                         ? 'border-indigo-600 bg-indigo-50 text-indigo-800'
@@ -164,7 +207,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setRole('teacher')}
+                    onClick={() => {
+                      setRole('teacher');
+                      setError(null);
+                    }}
                     className={`py-2.5 rounded-xl border-2 text-xs font-extrabold cursor-pointer transition-all ${
                       role === 'teacher'
                         ? 'border-indigo-600 bg-indigo-50 text-indigo-800'
@@ -174,6 +220,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     Öğretmen
                   </button>
                 </div>
+
+                {role === 'teacher' && (
+                  <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-1.5">
+                    <label className="block text-[11px] font-extrabold text-amber-900 uppercase">
+                      Öğretmen Davet Kodu (Tek Kullanımlık)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={inviteCode}
+                      onChange={(e) =>
+                        setInviteCode(e.target.value.toUpperCase())
+                      }
+                      placeholder="Örn: ARMA-7X4K"
+                      maxLength={24}
+                      className="w-full rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-sm font-extrabold tracking-wider uppercase text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <p className="text-[11px] text-amber-800 font-medium">
+                      Onaylı bir öğretmenden veya yöneticiden alacağınız tek
+                      kullanımlık ve süreli kodu giriniz.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
