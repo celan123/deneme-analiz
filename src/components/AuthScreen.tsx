@@ -305,13 +305,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                 E-posta
               </label>
-              <input
+       <input
                 type="text"
                 required
-                autoComplete="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ornek@okul.edu.tr"
+                placeholder="E-posta veya Kullanıcı Adı (Örn: ARMA)"
                 className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:border-indigo-500 focus:outline-none"
               />
             </div>
