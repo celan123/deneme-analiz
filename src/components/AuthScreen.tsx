@@ -44,15 +44,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     try {
       if (mode === 'LOGIN') {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        if (signInError) throw signInError;
-      } else {
-        if (!fullName.trim()) {
-          throw new Error('Lütfen ad soyad bilginizi giriniz.');
-        }
+     const signIn = async (emailOrUsername: string, password: string) => {
+    if (!supabase) throw new Error('Supabase bağlantısı yok.');
+    const cleaned = emailOrUsername.trim().toLowerCase();
+    const resolvedEmail = cleaned.includes('@')
+      ? cleaned
+      : `${cleaned}@armalig.com`;
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: resolvedEmail,
+      password,
+    });
+    if (error) throw error;
+  };
 
         const normalizedCode = inviteCode.trim().toUpperCase();
         if (role === 'teacher' && !normalizedCode) {
@@ -302,7 +306,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 E-posta
               </label>
               <input
-                type="email"
+                type="text"
                 required
                 autoComplete="email"
                 value={email}
