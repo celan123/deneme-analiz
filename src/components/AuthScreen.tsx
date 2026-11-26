@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { SmartboardPayload } from '../services/smartboardService';
 import { SmartboardCodeLoginCard } from './SmartboardCodeLoginCard';
@@ -18,6 +19,8 @@ interface ClaimInviteResponse {
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   onSmartboardEnter,
 }) => {
+  const { signIn } = useAuth();
+
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -44,11 +47,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     try {
       if (mode === 'LOGIN') {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        if (signInError) throw signInError;
+        await signIn(email, password);
       } else {
         if (!fullName.trim()) {
           throw new Error('Lütfen ad soyad bilginizi giriniz.');
@@ -88,10 +87,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         }
 
         if (role === 'teacher' && normalizedCode) {
-          const { data: claimData, error: claimError } =
-            await supabase.rpc('claim_teacher_invite', {
+          const { data: claimData, error: claimError } = await supabase.rpc(
+            'claim_teacher_invite',
+            {
               p_code: normalizedCode,
-            });
+            }
+          );
 
           if (claimError) {
             setInfo(
@@ -123,7 +124,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   return (
     <div className="min-h-screen bg-slate-100/80 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md space-y-4">
-        {/* ÜST KART: STANDART E-POSTA / ŞİFRE GİRİŞ & KAYIT */}
+        {/* ÜST KART: STANDART E-POSTA / KULLANICI ADI & ŞİFRE GİRİŞ / KAYIT */}
         <div className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white px-6 py-6 space-y-3">
             <div className="flex items-center gap-2.5">
@@ -299,15 +300,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                E-posta
+                {mode === 'LOGIN' ? 'E-posta veya Kullanıcı Adı' : 'E-posta'}
               </label>
-             <input
+              <input
                 type="text"
                 required
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-posta veya Kullanıcı Adı"
+                placeholder={
+                  mode === 'LOGIN'
+                    ? 'E-posta veya Kullanıcı Adı (Örn: GOKMEN)'
+                    : 'ornek@okul.edu.tr'
+                }
                 className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:border-indigo-500 focus:outline-none"
               />
             </div>
