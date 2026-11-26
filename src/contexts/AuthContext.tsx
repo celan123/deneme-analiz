@@ -102,10 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [loadProfile]);
 
-  const signIn = async (email: string, password: string) => {
+const signIn = async (emailOrUsername: string, password: string) => {
     if (!supabase) throw new Error('Supabase bağlantısı yok.');
+    const cleaned = emailOrUsername.trim().toLowerCase();
+    const resolvedEmail = cleaned.includes('@')
+      ? cleaned
+      : `${cleaned}@armalig.com`;
+
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: resolvedEmail,
       password,
     });
     if (error) throw error;

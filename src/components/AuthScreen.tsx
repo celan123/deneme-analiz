@@ -44,19 +44,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     try {
       if (mode === 'LOGIN') {
-     const signIn = async (emailOrUsername: string, password: string) => {
-    if (!supabase) throw new Error('Supabase bağlantısı yok.');
-    const cleaned = emailOrUsername.trim().toLowerCase();
-    const resolvedEmail = cleaned.includes('@')
-      ? cleaned
-      : `${cleaned}@armalig.com`;
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: resolvedEmail,
-      password,
-    });
-    if (error) throw error;
-  };
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (signInError) throw signInError;
+      } else {
+        if (!fullName.trim()) {
+          throw new Error('Lütfen ad soyad bilginizi giriniz.');
+        }
 
         const normalizedCode = inviteCode.trim().toUpperCase();
         if (role === 'teacher' && !normalizedCode) {
@@ -305,13 +301,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                 E-posta
               </label>
-       <input
+             <input
                 type="text"
                 required
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-posta veya Kullanıcı Adı (Örn: ARMA)"
+                placeholder="E-posta veya Kullanıcı Adı"
                 className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:border-indigo-500 focus:outline-none"
               />
             </div>
