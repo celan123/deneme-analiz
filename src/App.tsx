@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from 'react';
 import { AdminPanel } from './components/AdminPanel';
 import { AuthScreen } from './components/AuthScreen';
@@ -11,11 +12,8 @@ import { TeacherLobby } from './components/TeacherLobby';
 import { useAuth } from './contexts/AuthContext';
 import rawExamData from './data/mockExamData.json';
 import { isSupabaseConfigured } from './lib/supabase';
-import {
-  fetchAllExams,
-  fetchExamDataset,
-  submitStudentExam,
-} from './services/examService';
+import {  fetchAllExams,  fetchExamDataset,  submitStudentExam,} from './services/examService';
+import { QuestionReviewPanel } from './components/QuestionReviewPanel';
 import type { SmartboardPayload } from './services/smartboardService';
 import type {
   Exam,
@@ -46,7 +44,9 @@ interface NavHistoryState {
 function App() {
   const { user, profile, authLoading, signOut, refreshProfile } = useAuth();
   const userId = user?.id ?? null;
-
+  const [isReviewRoute, setIsReviewRoute] = useState<boolean>(
+  () => window.location.pathname.startsWith('/inceleme')
+);
   const [exams, setExams] = useState<Exam[]>([]);
   const [activeExamId, setActiveExamId] = useState<string>('exam-2026-02');
   const [dataset, setDataset] = useState<ExamDataset | null>(null);
@@ -129,6 +129,7 @@ function App() {
     }
 
     const handlePopState = (event: PopStateEvent) => {
+      setIsReviewRoute(window.location.pathname.startsWith('/inceleme'));
       const st = event.state as NavHistoryState | null;
       if (st?.armaNav) {
         setIsPreviewMode(st.isPreviewMode);
@@ -220,7 +221,20 @@ function App() {
     if (isSupabaseConfigured && !userId) return;
     loadExamsAndDataset();
   }, [userId, loadExamsAndDataset]);
-
+  if (isReviewRoute && user) {
+    return (
+      <QuestionReviewPanel
+        userId={user.id}
+        profile={profile}
+        onProfileUpdated={refreshProfile}
+        onExit={() => {
+          window.history.pushState({}, '', '/');
+          setIsReviewRoute(false);
+        }}
+        onSignOut={signOut}
+      />
+    );
+  }
   const refreshExamListOnly = async () => {
     if (!isLiveDb) return;
     try {
@@ -435,7 +449,16 @@ function App() {
                 >
                   Öğretmen Lobisi
                 </button>
-
+                    <button
+  type="button"
+  onClick={() => {
+    window.history.pushState({}, '', '/inceleme');
+    setIsReviewRoute(true);
+  }}
+  className="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-emerald-700 hover:bg-emerald-50"
+>
+  Soru İncele
+</button>
                 {isAdmin && (
                   <button
                     type="button"

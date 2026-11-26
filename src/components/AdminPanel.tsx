@@ -11,6 +11,10 @@ import {
   updateUserRole,
 } from '../services/adminService';
 import { fetchAllExams } from '../services/examService';
+import {
+  fetchAllQuestionReviews,
+  type AdminQuestionReviewRow,
+} from '../services/questionReviewService';
 import type { UserProfile, UserRole } from '../types/auth';
 import type {
   AgentQuestionInput,
@@ -55,6 +59,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pool, setPool] = useState<PoolQuestion[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [reviews, setReviews] = useState<AdminQuestionReviewRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [feedback, setFeedback] = useState<{
     type: 'ok' | 'err';
@@ -97,14 +102,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [poolData, examData, profileData] = await Promise.all([
+      const [poolData, examData, profileData, reviewData] = await Promise.all([
         fetchQuestionPool(),
         fetchAllExams(),
         fetchAllProfiles(),
+        fetchAllQuestionReviews(),
       ]);
       setPool(poolData);
       setExams(examData);
       setProfiles(profileData);
+      setReviews(reviewData);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : 'Admin verileri yüklenemedi.';
@@ -152,6 +159,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return true;
     });
   }, [pool, gradeFilter, subjectFilter, searchTerm]);
+
+  // Öğretmen adları ve soru bazlı değerlendirmeler
+  const profileNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    profiles.forEach((p) => map.set(p.id, p.full_name));
+    return map;
+  }, [profiles]);
+
+  const reviewsByQuestion = useMemo(() => {
+    const map = new Map<string, AdminQuestionReviewRow[]>();
+    reviews.forEach((r) => {
+      const list = map.get(r.question_id) ?? [];
+      list.push(r);
+      map.set(r.question_id, list);
+    });
+    return map;
+  }, [reviews]);
 
   // Sınav Sihirbazı için kazanım grupları
   const outcomeGroups = useMemo(() => {
@@ -791,69 +815,131 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {/* HAVUZ LİSTESİ (FARE İLE ÜSTÜNE GELİNCE HAYALET ÖĞRENCİ ÖNİZLEMESİ AÇILIR) */}
           <div className="space-y-3">
-            {filteredPool.map((q) => (
-              <div
-                key={q.id}
-                onMouseEnter={() => setHoveredQuestion(q)}
-                onMouseLeave={() => setHoveredQuestion(null)}
-                className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all shadow-xs space-y-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 font-mono text-xs font-bold">
-                      {q.outcome_code}
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
-                      {q.grade ? `${q.grade}. Sınıf • ` : ''}
-                      {q.subject}
-                    </span>
-                    {q.difficulty && (
-                      <span className="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold">
-                        {q.difficulty}
+            {filteredPool.map((q) => {
+              const qReviews = reviewsByQuestion.get(q.id) ?? [];
+              const approves = qReviews.filter(
+                (r) => r.decision === 'APPROVE'
+              ).length;
+              const rejects = qReviews.filter(
+                (r) => r.decision === 'REJECT'
+              ).length;
+              const reviewStatus =
+                approves >= 2 && approves > rejects
+                  ? 'APPROVED'
+                  : rejects >= 2 && rejects >= approves
+                    ? 'REJECTED'
+                    : 'PENDING';
+              const reviewNotes = qReviews.filter(
+                (r) => r.note && r.note.trim().length > 0
+              );
+
+              return (
+                <div
+                  key={q.id}
+                  onMouseEnter={() => setHoveredQuestion(q)}
+                  onMouseLeave={() => setHoveredQuestion(null)}
+                  className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all shadow-xs space-y-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 font-mono text-xs font-bold">
+                        {q.outcome_code}
                       </span>
-                    )}
-                    <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-                      Doğru: {q.correct_option}
-                    </span>
-                    {q.svg_code && (
-                      <span className="px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 text-xs font-semibold">
-                        SVG Görselli
+                      <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
+                        {q.grade ? `${q.grade}. Sınıf • ` : ''}
+                        {q.subject}
                       </span>
-                    )}
+                      {q.difficulty && (
+                        <span className="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold">
+                          {q.difficulty}
+                        </span>
+                      )}
+                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+                        Doğru: {q.correct_option}
+                      </span>
+                      {q.svg_code && (
+                        <span className="px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 text-xs font-semibold">
+                          SVG Görselli
+                        </span>
+                      )}
+                      <span
+                        className={`px-2.5 py-0.5 rounded-md border text-xs font-bold ${
+                          reviewStatus === 'APPROVED'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : reviewStatus === 'REJECTED'
+                              ? 'bg-rose-100 text-rose-800 border-rose-300'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {reviewStatus === 'APPROVED'
+                          ? '✓ Onaylı'
+                          : reviewStatus === 'REJECTED'
+                            ? '✕ Reddedildi'
+                            : '⏳ Bekliyor'}{' '}
+                        ({approves} Olur / {rejects} Olmaz)
+                      </span>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2"
+                      onMouseEnter={() => setHoveredQuestion(null)}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHoveredQuestion(null);
+                          setEditingQuestion(q);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold cursor-pointer"
+                      >
+                        Düzenle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteQuestion(q.id)}
+                        className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold cursor-pointer"
+                      >
+                        Sil
+                      </button>
+                    </div>
                   </div>
 
-                  <div
-                    className="flex items-center gap-2"
-                    onMouseEnter={() => setHoveredQuestion(null)}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHoveredQuestion(null);
-                        setEditingQuestion(q);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold cursor-pointer"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteQuestion(q.id)}
-                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold cursor-pointer"
-                    >
-                      Sil
-                    </button>
-                  </div>
+                  <p className="text-xs font-semibold text-slate-500">
+                    {q.outcome_title}
+                  </p>
+                  <p className="text-sm font-medium text-slate-900 line-clamp-2">
+                    {q.question_text}
+                  </p>
+
+                  {reviewNotes.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                      {reviewNotes.map((n) => (
+                        <div
+                          key={n.id}
+                          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 flex items-start justify-between gap-2"
+                        >
+                          <div>
+                            <span className="font-extrabold text-slate-800">
+                              {profileNameMap.get(n.reviewer_id) ?? 'Öğretmen'}:
+                            </span>{' '}
+                            <span className="text-slate-700">{n.note}</span>
+                          </div>
+                          <span
+                            className={`shrink-0 font-bold text-[10px] px-2 py-0.5 rounded ${
+                              n.decision === 'APPROVE'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {n.decision === 'APPROVE' ? 'Olur' : 'Olmaz'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                <p className="text-xs font-semibold text-slate-500">
-                  {q.outcome_title}
-                </p>
-                <p className="text-sm font-medium text-slate-900 line-clamp-2">
-                  {q.question_text}
-                </p>
-              </div>
-            ))}
+              );
+            })}
 
             {filteredPool.length === 0 && (
               <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-sm text-slate-500">

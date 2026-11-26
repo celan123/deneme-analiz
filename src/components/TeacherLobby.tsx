@@ -13,6 +13,7 @@ import {
   removeStudentFromClassroom,
   setExamClassrooms,
 } from '../services/classroomService';
+import { fetchReviewerCount } from '../services/questionReviewService';
 import type { SmartboardPayload } from '../services/smartboardService';
 import type { ClassroomWithDetails } from '../types/classroom';
 import type { Exam, ExamStatus } from '../types/exam';
@@ -193,6 +194,9 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
   >({});
   const [creatingExam, setCreatingExam] = useState<boolean>(false);
 
+  // %10 soru değerlendirme kotası sayacı
+  const [myReviewCount, setMyReviewCount] = useState<number>(0);
+
   const loadClassrooms = useCallback(async () => {
     setLoadingRooms(true);
     try {
@@ -237,6 +241,13 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
       loadTeacherInvites();
     }
   }, [showInviteModal, loadTeacherInvites]);
+
+  useEffect(() => {
+    if (!showCreator) return;
+    fetchReviewerCount(teacherId)
+      .then((cnt) => setMyReviewCount(cnt))
+      .catch(() => setMyReviewCount(0));
+  }, [showCreator, teacherId]);
 
   useEffect(() => {
     if (!showCreator || pool.length > 0) return;
@@ -329,6 +340,11 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
       }, 0),
     [visibleSubjectsForWizard, wizSubjectSelections]
   );
+
+  const requiredReviews = Math.ceil(totalWizardQuestions * 0.1);
+  const missingReviews = Math.max(0, requiredReviews - myReviewCount);
+  const isQuotaBlocked =
+    !isAdmin && totalWizardQuestions > 0 && missingReviews > 0;
 
   const handleSelectPresetMode = (mode: ExamPresetMode) => {
     setWizPresetMode(mode);
@@ -594,7 +610,7 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
   // Havuzdan müfredat aralığına (startWeek – endWeek) göre dengeli sınav derleme
   const handleCreateExamFromWizard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wizTitle.trim() || totalWizardQuestions === 0) return;
+    if (!wizTitle.trim() || totalWizardQuestions === 0 || isQuotaBlocked) return;
 
     const startsIso = fromDatetimeLocalValue(wizStartsAt);
     const endsIso = fromDatetimeLocalValue(wizEndsAt);
@@ -1069,11 +1085,40 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
               )}
             </div>
 
+            {/* %10 SORU DEĞERLENDİRME KOTASI UYARISI */}
+            {isQuotaBlocked && (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5 text-xs text-amber-950">
+                  <p className="font-extrabold">
+                    Soru Kalite Kotası: {myReviewCount} / {requiredReviews} soru
+                    değerlendirildi
+                  </p>
+                  <p className="text-amber-900">
+                    {totalWizardQuestions} soruluk sınav oluşturabilmek için en
+                    az <strong>{requiredReviews}</strong> soru (%10)
+                    değerlendirmiş olman gerekiyor. Şu an{' '}
+                    <strong>{missingReviews} soru</strong> daha incelemen
+                    yeterli.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.location.assign('/inceleme')}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shrink-0 transition-colors"
+                >
+                  Soru İncele ({missingReviews} Soru) →
+                </button>
+              </div>
+            )}
+
             <div className="flex justify-end pt-1">
               <button
                 type="submit"
                 disabled={
-                  creatingExam || !wizTitle.trim() || totalWizardQuestions === 0
+                  creatingExam ||
+                  !wizTitle.trim() ||
+                  totalWizardQuestions === 0 ||
+                  isQuotaBlocked
                 }
                 className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs sm:text-sm font-bold cursor-pointer"
               >
