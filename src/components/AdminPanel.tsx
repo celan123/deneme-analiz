@@ -219,12 +219,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       ) as AgentQuestionInput[];
       if (list.length === 0) throw new Error('JSON dizisi boş.');
 
-      const addedCount = await importQuestionsToPool(list, currentUserId);
+      const validQuestions: AgentQuestionInput[] = [];
+      const brokenSvgIds: string[] = [];
+
+      list.forEach((item, idx) => {
+        const needsSvg = Boolean(item.gorselGerekliMi);
+        const hasValidSvg =
+          typeof item.svgKodu === 'string' && item.svgKodu.includes('<svg');
+
+        if (needsSvg && !hasValidSvg) {
+          brokenSvgIds.push(item.id || `#${idx + 1}`);
+        } else {
+          validQuestions.push(item);
+        }
+      });
+
+      if (validQuestions.length === 0) {
+        throw new Error(
+          `Hiçbir soru eklenmedi. Bozuk SVG nedeniyle atlananlar: ${brokenSvgIds.join(', ')}`
+        );
+      }
+
+      const addedCount = await importQuestionsToPool(
+        validQuestions,
+        currentUserId
+      );
       setRawPoolJson('');
       setShowJsonImporter(false);
       setFeedback({
-        type: 'ok',
-        text: `${addedCount} soru Merkezi Soru Havuzuna başarıyla eklendi.`,
+        type: brokenSvgIds.length > 0 ? 'err' : 'ok',
+        text:
+          brokenSvgIds.length > 0
+            ? `${addedCount} sağlam soru havuza eklendi. Bozuk SVG nedeniyle eklenmeyenler (${brokenSvgIds.length}): ${brokenSvgIds.join(', ')}`
+            : `${addedCount} soru Merkezi Soru Havuzuna başarıyla eklendi.`,
       });
       await loadAllData();
     } catch (err) {

@@ -35,8 +35,17 @@ type ViewMode =
   | 'IMPORT'
   | 'ADMIN';
 
+interface NavHistoryState {
+  armaNav: true;
+  viewMode: ViewMode;
+  isPreviewMode: boolean;
+  lockedParticipation?: ParticipationType;
+  savedReportStudentId: string | null;
+}
+
 function App() {
   const { user, profile, authLoading, signOut, refreshProfile } = useAuth();
+  const userId = user?.id ?? null;
 
   const [exams, setExams] = useState<Exam[]>([]);
   const [activeExamId, setActiveExamId] = useState<string>('exam-2026-02');
@@ -68,6 +77,77 @@ function App() {
     !isSupabaseConfigured ||
     profile?.role === 'admin' ||
     profile?.role === 'teacher';
+
+  // Tarayıcı geçmişine uyumlu ekran geçişi
+  const navigateTo = useCallback(
+    (
+      nextView: ViewMode,
+      opts?: {
+        isPreviewMode?: boolean;
+        lockedParticipation?: ParticipationType;
+        savedReportStudentId?: string | null;
+        replace?: boolean;
+      }
+    ) => {
+      const nextPreview = opts?.isPreviewMode ?? false;
+      const nextLocked = opts?.lockedParticipation;
+      const nextReportId = opts?.savedReportStudentId ?? null;
+
+      setIsPreviewMode(nextPreview);
+      setLockedParticipation(nextLocked);
+      setSavedReportStudentId(nextReportId);
+      setViewMode(nextView);
+
+      const state: NavHistoryState = {
+        armaNav: true,
+        viewMode: nextView,
+        isPreviewMode: nextPreview,
+        lockedParticipation: nextLocked,
+        savedReportStudentId: nextReportId,
+      };
+
+      if (opts?.replace) {
+        window.history.replaceState(state, '');
+      } else {
+        window.history.pushState(state, '');
+      }
+    },
+    []
+  );
+
+  // Tarayıcı Geri / İleri tuşu dinleyicisi
+  useEffect(() => {
+    const initialState: NavHistoryState = {
+      armaNav: true,
+      viewMode,
+      isPreviewMode,
+      lockedParticipation,
+      savedReportStudentId,
+    };
+    if (!window.history.state?.armaNav) {
+      window.history.replaceState(initialState, '');
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const st = event.state as NavHistoryState | null;
+      if (st?.armaNav) {
+        setIsPreviewMode(st.isPreviewMode);
+        setLockedParticipation(st.lockedParticipation);
+        setSavedReportStudentId(st.savedReportStudentId);
+        setViewMode(st.viewMode);
+      } else {
+        setIsPreviewMode(false);
+        setLockedParticipation(undefined);
+        setSavedReportStudentId(null);
+        setViewMode(isStaff ? 'TEACHER_LOBBY' : 'STUDENT_LOBBY');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+    // Sadece rol değiştiğinde fallback ekranını güncelle
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStaff]);
 
   useEffect(() => {
     if (profile?.role === 'student') {
@@ -135,10 +215,11 @@ function App() {
     }
   }, []);
 
+  // Yalnızca userId değiştiğinde yükle (sekme dönüşü / token yenilemesinde sıfırlanmaz)
   useEffect(() => {
-    if (isSupabaseConfigured && !user) return;
+    if (isSupabaseConfigured && !userId) return;
     loadExamsAndDataset();
-  }, [user, loadExamsAndDataset]);
+  }, [userId, loadExamsAndDataset]);
 
   const refreshExamListOnly = async () => {
     if (!isLiveDb) return;
@@ -170,16 +251,16 @@ function App() {
 
   // Öğretmen lobisinden Analiz veya Kayıtsız Direkt Önizleme açma
   const handleTeacherOpenAnalytics = async (examId: string) => {
-    setIsPreviewMode(false);
     await handleSelectExam(examId);
-    setViewMode('ANALYTICS');
+    navigateTo('ANALYTICS', { isPreviewMode: false });
   };
 
   const handleTeacherPreviewExam = async (examId: string) => {
-    setIsPreviewMode(true);
-    setLockedParticipation(undefined);
     await handleSelectExam(examId);
-    setViewMode('STUDENT_EXAM');
+    navigateTo('STUDENT_EXAM', {
+      isPreviewMode: true,
+      lockedParticipation: undefined,
+    });
   };
 
   // Öğrenci lobisinden gerçek sınava veya geçmiş karneye giriş
@@ -187,35 +268,39 @@ function App() {
     exam: Exam,
     participationType: ParticipationType
   ) => {
-    setIsPreviewMode(false);
-    setLockedParticipation(participationType);
-    setSavedReportStudentId(null);
     await handleSelectExam(exam.id);
-    setViewMode('STUDENT_EXAM');
+    navigateTo('STUDENT_EXAM', {
+      isPreviewMode: false,
+      lockedParticipation: participationType,
+      savedReportStudentId: null,
+    });
   };
 
   const handleStudentViewReport = async (
     exam: Exam,
     attempt: StudentCompletedAttempt
   ) => {
-    setIsPreviewMode(false);
-    setSavedReportStudentId(attempt.student_id);
     await handleSelectExam(exam.id);
-    setViewMode('SAVED_REPORT');
+    navigateTo('SAVED_REPORT', {
+      isPreviewMode: false,
+      savedReportStudentId: attempt.student_id,
+    });
   };
 
   const handleBackToStudentLobby = async () => {
-    setIsPreviewMode(false);
-    setLockedParticipation(undefined);
-    setSavedReportStudentId(null);
-    setViewMode('STUDENT_LOBBY');
+    navigateTo('STUDENT_LOBBY', {
+      isPreviewMode: false,
+      lockedParticipation: undefined,
+      savedReportStudentId: null,
+    });
     await refreshExamListOnly();
   };
 
   const handleBackToTeacherLobby = async () => {
-    setIsPreviewMode(false);
-    setLockedParticipation(undefined);
-    setViewMode('TEACHER_LOBBY');
+    navigateTo('TEACHER_LOBBY', {
+      isPreviewMode: false,
+      lockedParticipation: undefined,
+    });
     await refreshExamListOnly();
   };
 
@@ -249,9 +334,8 @@ function App() {
   };
 
   const handleExamCreated = async (newExamId: string) => {
-    setIsPreviewMode(false);
     await loadExamsAndDataset(newExamId);
-    setViewMode('TEACHER_LOBBY');
+    navigateTo('TEACHER_LOBBY', { isPreviewMode: false });
   };
 
   if (authLoading) {
@@ -355,10 +439,9 @@ function App() {
                 {isAdmin && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsPreviewMode(false);
-                      setViewMode('ADMIN');
-                    }}
+                    onClick={() =>
+                      navigateTo('ADMIN', { isPreviewMode: false })
+                    }
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       viewMode === 'ADMIN'
                         ? 'bg-slate-900 text-amber-300 shadow-xs'
@@ -458,7 +541,7 @@ function App() {
           }
           onOpenAnalytics={handleTeacherOpenAnalytics}
           onPreviewExam={handleTeacherPreviewExam}
-          onOpenJsonImport={() => setViewMode('IMPORT')}
+          onOpenJsonImport={() => navigateTo('IMPORT')}
           onOpenSmartboardLocal={(payload) => setSmartboardPayload(payload)}
         />
       ) : isStaff && viewMode === 'ANALYTICS' && dataset ? (
@@ -505,7 +588,7 @@ function App() {
             answers={savedAnswers}
             isStaff={isStaff}
             onRetake={handleBackToStudentLobby}
-            onGoToDashboard={() => setViewMode('ANALYTICS')}
+            onGoToDashboard={() => navigateTo('ANALYTICS')}
           />
         </div>
       ) : dataset ? (
@@ -520,8 +603,9 @@ function App() {
           lockedParticipationType={lockedParticipation}
           onComplete={handleExamComplete}
           onGoToDashboard={() => {
-            setIsPreviewMode(false);
-            setViewMode(isStaff ? 'ANALYTICS' : 'STUDENT_LOBBY');
+            navigateTo(isStaff ? 'ANALYTICS' : 'STUDENT_LOBBY', {
+              isPreviewMode: false,
+            });
           }}
           onBackToLobby={
             user

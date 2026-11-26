@@ -12,6 +12,23 @@ import type {
 
 const VALID_OPTIONS: ValidOption[] = ['A', 'B', 'C', 'D', 'E'];
 
+type AgentQuestionWithWeek = AgentQuestionInput & {
+  mufredatHaftasi?: number | string | null;
+  curriculum_week?: number | string | null;
+};
+
+type PoolQuestionWithWeek = PoolQuestion & {
+  curriculum_week?: number | null;
+};
+
+function parseCurriculumWeek(value: unknown): number {
+  const num = Number(value);
+  if (Number.isFinite(num) && num >= 1 && num <= 36) {
+    return Math.round(num);
+  }
+  return 1;
+}
+
 // ============================================================================
 // 1. MERKEZİ SORU HAVUZU İŞLEMLERİ
 // ============================================================================
@@ -35,7 +52,8 @@ export async function importQuestionsToPool(
   if (!supabase) throw new Error('Supabase bağlantısı hazır değil.');
 
   const batchPrefix = `pool-${Date.now()}`;
-  const rows = agentQuestions.map((item, idx) => {
+  const rows = agentQuestions.map((rawItem, idx) => {
+    const item = rawItem as AgentQuestionWithWeek;
     const rawCorrect = String(item.dogruCevap ?? 'A')
       .trim()
       .toUpperCase() as ValidOption;
@@ -46,11 +64,16 @@ export async function importQuestionsToPool(
     const hasValidSvg =
       typeof item.svgKodu === 'string' && item.svgKodu.includes('<svg');
 
+    const curriculumWeek = parseCurriculumWeek(
+      item.mufredatHaftasi ?? item.curriculum_week
+    );
+
     return {
       id: `${batchPrefix}-${idx + 1}`,
       subject: item.ders?.trim() || 'Genel',
       grade: typeof item.sinif === 'number' ? item.sinif : null,
       unit: item.unite?.trim() || null,
+      curriculum_week: curriculumWeek,
       outcome_code: item.kazanimKodu?.trim() || `KZN-${idx + 1}`,
       outcome_title: item.kazanimAdi?.trim() || 'Kazanım açıklaması girilmedi',
       difficulty: item.zorluk?.trim() || null,
@@ -71,25 +94,31 @@ export async function importQuestionsToPool(
 
 export async function updatePoolQuestion(
   id: string,
-  updates: Partial<PoolQuestion>
+  updates: Partial<PoolQuestionWithWeek>
 ): Promise<PoolQuestion> {
   if (!supabase) throw new Error('Supabase bağlantısı hazır değil.');
 
+  const payload: Record<string, unknown> = {
+    subject: updates.subject,
+    grade: updates.grade,
+    unit: updates.unit,
+    outcome_code: updates.outcome_code,
+    outcome_title: updates.outcome_title,
+    difficulty: updates.difficulty,
+    question_text: updates.question_text,
+    correct_option: updates.correct_option,
+    svg_code: updates.svg_code,
+    solution: updates.solution,
+    distractor_analysis: updates.distractor_analysis,
+  };
+
+  if (updates.curriculum_week !== undefined) {
+    payload.curriculum_week = parseCurriculumWeek(updates.curriculum_week);
+  }
+
   const { data, error } = await supabase
     .from('question_pool')
-    .update({
-      subject: updates.subject,
-      grade: updates.grade,
-      unit: updates.unit,
-      outcome_code: updates.outcome_code,
-      outcome_title: updates.outcome_title,
-      difficulty: updates.difficulty,
-      question_text: updates.question_text,
-      correct_option: updates.correct_option,
-      svg_code: updates.svg_code,
-      solution: updates.solution,
-      distractor_analysis: updates.distractor_analysis,
-    })
+    .update(payload)
     .eq('id', id)
     .select('*')
     .single();
@@ -193,7 +222,11 @@ export async function updateExamSettings(
   updates: Partial<
     Pick<
       Exam,
-      'status' | 'allow_guests' | 'show_solutions_after_finish' | 'exam_scope' | 'starts_at' | 'ends_at'
+      | 'status'
+      | 'allow_guests'
+      | 'show_solutions_after_finish'
+      | 'exam_scope'
+      | 'starts_at'
       | 'ends_at'
     >
   >

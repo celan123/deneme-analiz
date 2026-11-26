@@ -5,6 +5,7 @@ import {
   joinWaitingRoom,
   leaveWaitingRoom,
 } from '../services/waitingRoomService';
+import { FormattedQuestionText } from './FormattedQuestionText';
 import type { UserProfile } from '../types/auth';
 import type {
   Exam,
@@ -43,6 +44,80 @@ interface StudentExamViewProps {
 
 type ExamPhase = 'WAITING_ROOM' | 'START' | 'IN_PROGRESS' | 'FINISHED';
 
+interface ExamDraftSnapshot {
+  phase: ExamPhase;
+  currentIdx: number;
+  selectedAnswers: Record<string, OptionChoice>;
+  changeCounts: Record<string, number>;
+  timeSpentMap: Record<string, number>;
+  flaggedIds: string[];
+  deadlineMs: number | null;
+  fullName: string;
+  classroom: string;
+  schoolName: string;
+  participationType: ParticipationType;
+  savedAt: number;
+}
+
+const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 saat
+
+function buildDraftKey(
+  examId: string,
+  userId: string | undefined,
+  isPreviewMode: boolean
+): string {
+  return `arma_exam_draft_v1_${examId}_${userId ?? 'anon'}_${isPreviewMode ? 'preview' : 'live'}`;
+}
+
+function loadExamDraft(key: string): ExamDraftSnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ExamDraftSnapshot>;
+    if (!parsed || typeof parsed.savedAt !== 'number') return null;
+    if (Date.now() - parsed.savedAt > DRAFT_MAX_AGE_MS) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return {
+      phase: parsed.phase === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'START',
+      currentIdx: typeof parsed.currentIdx === 'number' ? parsed.currentIdx : 0,
+      selectedAnswers: parsed.selectedAnswers ?? {},
+      changeCounts: parsed.changeCounts ?? {},
+      timeSpentMap: parsed.timeSpentMap ?? {},
+      flaggedIds: Array.isArray(parsed.flaggedIds) ? parsed.flaggedIds : [],
+      deadlineMs:
+        typeof parsed.deadlineMs === 'number' ? parsed.deadlineMs : null,
+      fullName: typeof parsed.fullName === 'string' ? parsed.fullName : '',
+      classroom:
+        typeof parsed.classroom === 'string' ? parsed.classroom : '8-A',
+      schoolName:
+        typeof parsed.schoolName === 'string' ? parsed.schoolName : '',
+      participationType:
+        parsed.participationType === 'GUEST' ? 'GUEST' : 'OFFICIAL',
+      savedAt: parsed.savedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveExamDraft(key: string, snapshot: ExamDraftSnapshot): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(snapshot));
+  } catch {
+    // Depolama kotası doluysa veya gizli mod engelliyorsa sessiz geç
+  }
+}
+
+function clearExamDraft(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Sessiz geç
+  }
+}
+
 export const StudentExamView: React.FC<StudentExamViewProps> = ({
   exam,
   questions,
@@ -63,6 +138,22 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   const allowGuests = exam.allow_guests ?? true;
   const isLockedMode = Boolean(lockedParticipationType);
 
+  const draftKey = useMemo(
+    () => buildDraftKey(exam.id, profile?.id, isPreviewMode),
+    [exam.id, profile?.id, isPreviewMode]
+  );
+
+  const [initialDraft] = useState<ExamDraftSnapshot | null>(() =>
+    loadExamDraft(draftKey)
+  );
+
+  const hasRestoredAnswers = Boolean(
+    initialDraft &&
+      Object.values(initialDraft.selectedAnswers).some((val) => val !== null)
+  );
+  const [showRestoredBanner, setShowRestoredBanner] =
+    useState<boolean>(hasRestoredAnswers);
+
   // Canlı başlangıç/bitiş saatleri (öğretmen erken başlatırsa anında güncellenir)
   const [liveStartsAt, setLiveStartsAt] = useState<string | null>(
     exam.starts_at ?? null
@@ -77,39 +168,58 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
     isLockedMode &&
     getExamScheduleState(exam).phase === 'UPCOMING';
 
-  const [phase, setPhase] = useState<ExamPhase>(
-    isPreviewMode
-      ? 'IN_PROGRESS'
-      : startsInWaitingRoom
-        ? 'WAITING_ROOM'
-        : 'START'
-  );
+  const [phase, setPhase] = useState<ExamPhase>(() => {
+    if (startsInWaitingRoom) return 'WAITING_ROOM';
+    if (isPreviewMode) return 'IN_PROGRESS';
+    if (initialDraft?.phase === 'IN_PROGRESS') return 'IN_PROGRESS';
+    return 'START';
+  });
+
   const [waitingRegistered, setWaitingRegistered] = useState<boolean>(false);
   const [waitingNowMs, setWaitingNowMs] = useState<number>(() => Date.now());
 
-  const [fullName, setFullName] = useState<string>(profile?.full_name ?? '');
+  const [fullName, setFullName] = useState<string>(
+    initialDraft?.fullName || profile?.full_name || ''
+  );
   const [classroom, setClassroom] = useState<string>(
-    profile?.classroom || '8-A'
+    initialDraft?.classroom || profile?.classroom || '8-A'
   );
   const [schoolName, setSchoolName] = useState<string>(
-    profile?.school_name ?? ''
+    initialDraft?.schoolName || profile?.school_name || ''
   );
   const [participationType, setParticipationType] = useState<ParticipationType>(
-    isPreviewMode ? 'GUEST' : (lockedParticipationType ?? 'OFFICIAL')
+    isPreviewMode
+      ? 'GUEST'
+      : (lockedParticipationType ??
+          initialDraft?.participationType ??
+          'OFFICIAL')
   );
 
-  const [currentIdx, setCurrentIdx] = useState<number>(0);
+  const [currentIdx, setCurrentIdx] = useState<number>(() => {
+    const idx = initialDraft?.currentIdx ?? 0;
+    if (sortedQuestions.length === 0) return 0;
+    return Math.min(Math.max(0, idx), sortedQuestions.length - 1);
+  });
   const [selectedAnswers, setSelectedAnswers] = useState<
     Record<string, OptionChoice>
-  >({});
-  const [changeCounts, setChangeCounts] = useState<Record<string, number>>({});
-  const [timeSpentMap, setTimeSpentMap] = useState<Record<string, number>>({});
-  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
+  >(() => initialDraft?.selectedAnswers ?? {});
+  const [changeCounts, setChangeCounts] = useState<Record<string, number>>(
+    () => initialDraft?.changeCounts ?? {}
+  );
+  const [timeSpentMap, setTimeSpentMap] = useState<Record<string, number>>(
+    () => initialDraft?.timeSpentMap ?? {}
+  );
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(
+    () => new Set(initialDraft?.flaggedIds ?? [])
+  );
   const [drawingsByQuestion, setDrawingsByQuestion] = useState<
     Record<string, DrawingStroke[]>
   >({});
 
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [deadlineMs, setDeadlineMs] = useState<number | null>(
+    () => initialDraft?.deadlineMs ?? null
+  );
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [completedRecord, setCompletedRecord] = useState<{
     student: Student;
@@ -122,6 +232,82 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
 
   const autoSubmittedRef = useRef<boolean>(false);
   const finishExamRef = useRef<() => void>(() => {});
+
+  // Ekran kapanırken/arka plana düşerken en güncel state'i kaydetmek için ref
+  const latestDraftRef = useRef<ExamDraftSnapshot>({
+    phase,
+    currentIdx,
+    selectedAnswers,
+    changeCounts,
+    timeSpentMap,
+    flaggedIds: Array.from(flaggedIds),
+    deadlineMs,
+    fullName,
+    classroom,
+    schoolName,
+    participationType,
+    savedAt: Date.now(),
+  });
+
+  latestDraftRef.current = {
+    phase,
+    currentIdx,
+    selectedAnswers,
+    changeCounts,
+    timeSpentMap,
+    flaggedIds: Array.from(flaggedIds),
+    deadlineMs,
+    fullName,
+    classroom,
+    schoolName,
+    participationType,
+    savedAt: Date.now(),
+  };
+
+  // Cevaplar veya soru sırası değiştikçe anında localStorage'a yaz
+  useEffect(() => {
+    if (phase !== 'IN_PROGRESS') return;
+    saveExamDraft(draftKey, latestDraftRef.current);
+  }, [
+    draftKey,
+    phase,
+    currentIdx,
+    selectedAnswers,
+    changeCounts,
+    flaggedIds,
+    deadlineMs,
+    fullName,
+    classroom,
+    schoolName,
+    participationType,
+  ]);
+
+  // Ekran kilidi, sekme değişimi veya sayfa kapanışında son sürelerle birlikte zorla kaydet
+  useEffect(() => {
+    const flushDraft = () => {
+      if (latestDraftRef.current.phase !== 'IN_PROGRESS') return;
+      saveExamDraft(draftKey, {
+        ...latestDraftRef.current,
+        savedAt: Date.now(),
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushDraft();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', flushDraft);
+    window.addEventListener('beforeunload', flushDraft);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', flushDraft);
+      window.removeEventListener('beforeunload', flushDraft);
+    };
+  }, [draftKey]);
 
   // Önizleme karnesi için ana dataset'i bozmadan yalnızca bellekte geçici veri birleştir
   const reportDataset = useMemo<ExamDataset>(() => {
@@ -338,6 +524,7 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
       if (!isPreviewMode) {
         await onComplete(newStudent, finalAnswers);
       }
+      clearExamDraft(draftKey);
       setCompletedRecord({ student: newStudent, answers: finalAnswers });
       setPhase('FINISHED');
     } finally {
@@ -355,16 +542,20 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
     }
 
     autoSubmittedRef.current = false;
-    const durationDeadline =
-      Date.now() + (exam.duration_minutes ?? 40) * 60 * 1000;
+    const baseDeadline =
+      deadlineMs ?? Date.now() + (exam.duration_minutes ?? 40) * 60 * 1000;
     const scheduleEndMs = liveEndsAt ? new Date(liveEndsAt).getTime() : null;
 
     const effectiveDeadline =
       scheduleEndMs &&
       scheduleEndMs > Date.now() &&
       participationType === 'OFFICIAL'
-        ? Math.min(durationDeadline, scheduleEndMs)
-        : durationDeadline;
+        ? Math.min(baseDeadline, scheduleEndMs)
+        : baseDeadline;
+
+    if (deadlineMs !== effectiveDeadline) {
+      setDeadlineMs(effectiveDeadline);
+    }
 
     const tick = () => {
       const left = Math.max(0, effectiveDeadline - Date.now());
@@ -381,12 +572,14 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   }, [
     phase,
     isPreviewMode,
+    deadlineMs,
     exam.duration_minutes,
     liveEndsAt,
     participationType,
   ]);
 
   const handleRetake = () => {
+    clearExamDraft(draftKey);
     if (!isStaff && onBackToLobby) {
       onBackToLobby();
       return;
@@ -397,6 +590,8 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
     setTimeSpentMap({});
     setFlaggedIds(new Set());
     setDrawingsByQuestion({});
+    setDeadlineMs(null);
+    setShowRestoredBanner(false);
     setCompletedRecord(null);
     setPhase(isPreviewMode ? 'IN_PROGRESS' : 'START');
   };
@@ -729,6 +924,21 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   // =========================================================================
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-4">
+      {showRestoredBanner && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-emerald-900">
+          <span className="font-bold">
+            ✓ Önceki oturumdan işaretlediğin cevaplar otomatik geri yüklendi.
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowRestoredBanner(false)}
+            className="font-extrabold underline cursor-pointer shrink-0"
+          >
+            Tamam
+          </button>
+        </div>
+      )}
+
       {isPreviewMode && (
         <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 text-xs text-amber-950">
@@ -810,8 +1020,10 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
                 <SvgPreview svgCode={currentQuestion.svg_code} />
 
                 <div className="text-base sm:text-lg font-semibold text-slate-900 leading-relaxed whitespace-pre-line">
-                  {currentQuestion.question_text ??
-                    currentQuestion.outcome_title}
+                  <FormattedQuestionText
+  text={currentQuestion.question_text ?? currentQuestion.outcome_title}
+  className="text-base sm:text-lg font-semibold text-slate-900 leading-relaxed"
+/>
                 </div>
               </div>
             </QuestionDrawingArea>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   createExamFromPoolSelection,
   fetchQuestionPool,
@@ -14,13 +15,18 @@ import {
 } from '../services/classroomService';
 import type { SmartboardPayload } from '../services/smartboardService';
 import type { ClassroomWithDetails } from '../types/classroom';
-import type { Exam, ExamStatus, PoolQuestion } from '../types/exam';
+import type { Exam, ExamStatus } from '../types/exam';
 import {
   formatScheduleWindow,
   fromDatetimeLocalValue,
   getExamScheduleState,
   toDatetimeLocalValue,
 } from '../utils/examSchedule';
+import {
+  CurriculumTimelineSelector,
+  type PoolQuestionWithWeek,
+  type SubjectCurriculumSelection,
+} from './CurriculumTimelineSelector';
 import { ExamAttendanceDrawer } from './ExamAttendanceDrawer';
 import { SmartboardCodeModal } from './SmartboardCodeModal';
 
@@ -37,6 +43,45 @@ interface TeacherLobbyProps {
 }
 
 type TeacherTab = 'EXAMS' | 'CLASSROOMS';
+type ExamPresetMode = 'CUSTOM' | 'SINGLE_SUBJECT' | 'LGS' | 'YKS';
+
+type PoolQuestionExtended = PoolQuestionWithWeek & {
+  grade?: number | null;
+};
+
+interface TeacherInviteRow {
+  id: string;
+  code: string;
+  expires_at: string;
+  used_at: string | null;
+  created_at: string;
+}
+
+interface CreateInviteRpcResponse {
+  ok: boolean;
+  id?: string;
+  code?: string;
+  expires_at?: string;
+  error?: string;
+}
+
+const GRADE_LEVELS = [5, 6, 7, 8, 9, 10, 11, 12];
+
+const LGS_SUBJECT_QUOTAS: Record<string, number> = {
+  Türkçe: 20,
+  'T.C. İnkılap Tarihi': 10,
+  'Din Kültürü': 10,
+  İngilizce: 10,
+  Matematik: 20,
+  'Fen Bilimleri': 20,
+};
+
+const YKS_SUBJECT_QUOTAS: Record<string, number> = {
+  Türkçe: 40,
+  'Sosyal Bilimler': 20,
+  Matematik: 40,
+  'Fen Bilimleri': 20,
+};
 
 function shuffleArray<T>(items: T[]): T[] {
   const copy = [...items];
@@ -61,6 +106,19 @@ function getTonightPreset(): { start: string; end: string } {
   return { start: `${ymd}T20:00`, end: `${ymd}T20:40` };
 }
 
+function formatInviteDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
   teacherId,
   teacherName,
@@ -80,6 +138,13 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
     text: string;
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Öğretmen Davet Kodu Modalı (Tek Kullanımlık + Süreli)
+  const [showInviteModal, setShowInviteModal] = useState<boolean>(false);
+  const [inviteHours, setInviteHours] = useState<number>(24);
+  const [invites, setInvites] = useState<TeacherInviteRow[]>([]);
+  const [loadingInvites, setLoadingInvites] = useState<boolean>(false);
+  const [creatingInvite, setCreatingInvite] = useState<boolean>(false);
 
   // Sınav Ayarları Modalı (Durum, Misafir, Çoklu Sınıf Atama, Zamanlı Pencere)
   const [settingsExam, setSettingsExam] = useState<Exam | null>(null);
@@ -107,7 +172,7 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
 
   // "+ Yeni Sınav Hazırla" çekmecesi
   const [showCreator, setShowCreator] = useState<boolean>(false);
-  const [pool, setPool] = useState<PoolQuestion[]>([]);
+  const [pool, setPool] = useState<PoolQuestionExtended[]>([]);
   const [loadingPool, setLoadingPool] = useState<boolean>(false);
   const today = new Date().toISOString().slice(0, 10);
   const [wizTitle, setWizTitle] = useState<string>('');
@@ -117,11 +182,15 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
   const [wizAllowGuests, setWizAllowGuests] = useState<boolean>(true);
   const [wizStartsAt, setWizStartsAt] = useState<string>('');
   const [wizEndsAt, setWizEndsAt] = useState<string>('');
-  const [wizSubjectFilter, setWizSubjectFilter] = useState<string>('ALL');
+  const [wizLevels, setWizLevels] = useState<number[]>([5]);
+  const [wizPresetMode, setWizPresetMode] = useState<ExamPresetMode>('CUSTOM');
+  const [wizSingleSubject, setWizSingleSubject] = useState<string>('');
+  const [wizStartWeek, setWizStartWeek] = useState<number>(1);
+  const [wizEndWeek, setWizEndWeek] = useState<number>(10);
   const [wizClassIds, setWizClassIds] = useState<string[]>([]);
-  const [outcomeQuotas, setOutcomeQuotas] = useState<Record<string, number>>(
-    {}
-  );
+  const [wizSubjectSelections, setWizSubjectSelections] = useState<
+    Record<string, SubjectCurriculumSelection>
+  >({});
   const [creatingExam, setCreatingExam] = useState<boolean>(false);
 
   const loadClassrooms = useCallback(async () => {
@@ -137,15 +206,43 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
     }
   }, [teacherId, isAdmin]);
 
+  const loadTeacherInvites = useCallback(async () => {
+    if (!supabase) return;
+    setLoadingInvites(true);
+    try {
+      const { data, error } = await supabase
+        .from('teacher_invites')
+        .select('id, code, expires_at, used_at, created_at')
+        .eq('created_by', teacherId)
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      if (error) throw error;
+      setInvites((data ?? []) as TeacherInviteRow[]);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Davet kodları yüklenemedi.';
+      setFeedback({ type: 'err', text: msg });
+    } finally {
+      setLoadingInvites(false);
+    }
+  }, [teacherId]);
+
   useEffect(() => {
     loadClassrooms();
   }, [loadClassrooms]);
 
   useEffect(() => {
+    if (showInviteModal) {
+      loadTeacherInvites();
+    }
+  }, [showInviteModal, loadTeacherInvites]);
+
+  useEffect(() => {
     if (!showCreator || pool.length > 0) return;
     setLoadingPool(true);
     fetchQuestionPool()
-      .then((data) => setPool(data))
+      .then((data) => setPool(data as PoolQuestionExtended[]))
       .catch((err) => {
         const msg =
           err instanceof Error ? err.message : 'Soru havuzu yüklenemedi.';
@@ -165,10 +262,11 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
     [classrooms]
   );
 
+  // Sınav sahipliği izolasyonu: sadece kendi sınavı veya kendi sınıfına atananlar
   const visibleExams = useMemo(() => {
     if (isAdmin) return exams;
     return exams.filter((ex) => {
-      if (!ex.owner_id || ex.owner_id === teacherId) return true;
+      if (ex.owner_id === teacherId) return true;
       return getAssignedClassIds(ex).some((cid) => myClassroomIds.has(cid));
     });
   }, [exams, isAdmin, teacherId, myClassroomIds]);
@@ -178,55 +276,116 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
     [classrooms]
   );
 
+  // Seviyeye göre filtrelenmiş sınıflar
+  const filteredClassroomsForWizard = useMemo(() => {
+    if (wizLevels.length === 0) return classrooms;
+    return classrooms.filter(
+      (c) => c.grade == null || wizLevels.includes(c.grade)
+    );
+  }, [classrooms, wizLevels]);
+
+  // Seviyeye göre filtrelenmiş soru havuzu
+  const filteredPoolForWizard = useMemo(() => {
+    if (wizLevels.length === 0) return pool;
+    return pool.filter((q) => q.grade == null || wizLevels.includes(q.grade));
+  }, [pool, wizLevels]);
+
   const availableSubjects = useMemo(() => {
     const set = new Set<string>();
-    pool.forEach((q) => {
+    filteredPoolForWizard.forEach((q) => {
       if (q.subject) set.add(q.subject);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
-  }, [pool]);
+  }, [filteredPoolForWizard]);
 
-  const outcomeGroups = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        outcome_code: string;
-        outcome_title: string;
-        subject: string;
-        questions: PoolQuestion[];
-      }
-    >();
-
-    for (const q of pool) {
-      if (wizSubjectFilter !== 'ALL' && q.subject !== wizSubjectFilter) {
-        continue;
-      }
-      let grp = map.get(q.outcome_code);
-      if (!grp) {
-        grp = {
-          outcome_code: q.outcome_code,
-          outcome_title: q.outcome_title,
-          subject: q.subject,
-          questions: [],
-        };
-        map.set(q.outcome_code, grp);
-      }
-      grp.questions.push(q);
+  // Tek ders modunda varsayılan dersi seç
+  useEffect(() => {
+    if (
+      wizPresetMode === 'SINGLE_SUBJECT' &&
+      !wizSingleSubject &&
+      availableSubjects.length > 0
+    ) {
+      setWizSingleSubject(availableSubjects[0]);
     }
+  }, [wizPresetMode, wizSingleSubject, availableSubjects]);
 
-    return Array.from(map.values()).sort((a, b) =>
-      a.outcome_code.localeCompare(b.outcome_code, 'tr')
-    );
-  }, [pool, wizSubjectFilter]);
+  const isQuestionCountLocked =
+    wizPresetMode === 'LGS' || wizPresetMode === 'YKS';
+
+  const visibleSubjectsForWizard = useMemo(() => {
+    if (wizPresetMode === 'LGS') return Object.keys(LGS_SUBJECT_QUOTAS);
+    if (wizPresetMode === 'YKS') return Object.keys(YKS_SUBJECT_QUOTAS);
+    if (wizPresetMode === 'SINGLE_SUBJECT') {
+      return wizSingleSubject ? [wizSingleSubject] : [];
+    }
+    return availableSubjects;
+  }, [wizPresetMode, wizSingleSubject, availableSubjects]);
 
   const totalWizardQuestions = useMemo(
     () =>
-      Object.values(outcomeQuotas).reduce(
-        (sum, count) => sum + (count > 0 ? count : 0),
-        0
-      ),
-    [outcomeQuotas]
+      visibleSubjectsForWizard.reduce((sum, subject) => {
+        const count = wizSubjectSelections[subject]?.questionCount ?? 0;
+        return sum + (count > 0 ? count : 0);
+      }, 0),
+    [visibleSubjectsForWizard, wizSubjectSelections]
   );
+
+  const handleSelectPresetMode = (mode: ExamPresetMode) => {
+    setWizPresetMode(mode);
+    if (mode === 'LGS') {
+      setWizLevels([8]);
+      setWizPenalty(0.333);
+      setWizDuration(155);
+      const next: Record<string, SubjectCurriculumSelection> = {};
+      Object.entries(LGS_SUBJECT_QUOTAS).forEach(([subject, questionCount]) => {
+        next[subject] = {
+          subject,
+          questionCount,
+          allTopics: false,
+          excludedOutcomeCodes:
+            wizSubjectSelections[subject]?.excludedOutcomeCodes ?? [],
+        };
+      });
+      setWizSubjectSelections(next);
+    } else if (mode === 'YKS') {
+      setWizLevels([12]);
+      setWizPenalty(0.25);
+      setWizDuration(165);
+      const next: Record<string, SubjectCurriculumSelection> = {};
+      Object.entries(YKS_SUBJECT_QUOTAS).forEach(([subject, questionCount]) => {
+        next[subject] = {
+          subject,
+          questionCount,
+          allTopics: false,
+          excludedOutcomeCodes:
+            wizSubjectSelections[subject]?.excludedOutcomeCodes ?? [],
+        };
+      });
+      setWizSubjectSelections(next);
+    } else if (mode === 'SINGLE_SUBJECT') {
+      const targetSubject = wizSingleSubject || availableSubjects[0] || '';
+      setWizSingleSubject(targetSubject);
+      if (targetSubject) {
+        setWizSubjectSelections((prev) => ({
+          ...prev,
+          [targetSubject]: prev[targetSubject] ?? {
+            subject: targetSubject,
+            questionCount: 20,
+            allTopics: false,
+            excludedOutcomeCodes: [],
+          },
+        }));
+      }
+    }
+  };
+
+  const toggleWizardLevel = (level: number) => {
+    setWizLevels((prev) =>
+      prev.includes(level)
+        ? prev.filter((l) => l !== level)
+        : [...prev, level].sort((a, b) => a - b)
+    );
+  };
 
   // =========================================================================
   // ORTAK AKSİYONLAR
@@ -239,6 +398,36 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
       window.setTimeout(() => setCopiedKey(null), 1600);
     } catch {
       setFeedback({ type: 'err', text: `Kopyalanamadı, kod: ${text}` });
+    }
+  };
+
+  const handleCreateTeacherInvite = async () => {
+    if (!supabase) return;
+    setCreatingInvite(true);
+    setFeedback(null);
+    try {
+      const { data, error } = await supabase.rpc('create_teacher_invite', {
+        p_hours: inviteHours,
+      });
+      if (error) throw error;
+
+      const res = data as CreateInviteRpcResponse | null;
+      if (!res?.ok || !res.code) {
+        throw new Error(res?.error ?? 'Davet kodu üretilemedi.');
+      }
+
+      setFeedback({
+        type: 'ok',
+        text: `Tek kullanımlık davet kodu üretildi: ${res.code}`,
+      });
+      await loadTeacherInvites();
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Davet kodu üretilemedi.',
+      });
+    } finally {
+      setCreatingInvite(false);
     }
   };
 
@@ -402,7 +591,7 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
     }
   };
 
-  // Havuzdan hızlı sınav derleme
+  // Havuzdan müfredat aralığına (startWeek – endWeek) göre dengeli sınav derleme
   const handleCreateExamFromWizard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wizTitle.trim() || totalWizardQuestions === 0) return;
@@ -421,21 +610,46 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
     setFeedback(null);
     try {
       const selectedIds: string[] = [];
-      for (const grp of outcomeGroups) {
-        const quota = outcomeQuotas[grp.outcome_code] ?? 0;
-        if (quota <= 0) continue;
-        const picked = shuffleArray(grp.questions).slice(
+
+      for (const subject of visibleSubjectsForWizard) {
+        const sel = wizSubjectSelections[subject];
+        if (!sel || sel.questionCount <= 0) continue;
+
+        const eligible = filteredPoolForWizard.filter((q) => {
+          if (q.subject !== subject) return false;
+          if (sel.excludedOutcomeCodes.includes(q.outcome_code)) return false;
+          if (!sel.allTopics) {
+            const week =
+              typeof q.curriculum_week === 'number' && q.curriculum_week >= 1
+                ? q.curriculum_week
+                : 1;
+            if (week < wizStartWeek || week > wizEndWeek) return false;
+          }
+          return true;
+        });
+
+        const picked = shuffleArray(eligible).slice(
           0,
-          Math.min(quota, grp.questions.length)
+          Math.min(sel.questionCount, eligible.length)
         );
         selectedIds.push(...picked.map((q) => q.id));
       }
+
+      if (selectedIds.length === 0) {
+        throw new Error(
+          'Seçili hafta aralığı ve ders kriterlerine uygun soru havuzda bulunamadı.'
+        );
+      }
+
+      const validAssignedClasses = wizClassIds.filter((cid) =>
+        filteredClassroomsForWizard.some((c) => c.id === cid)
+      );
 
       const newExamId = await createExamFromPoolSelection({
         title: wizTitle,
         examDate: wizDate,
         wrongPenaltyRatio: wizPenalty,
-        examScope: wizClassIds.length > 0 ? 'CLASSROOM' : 'NATIONAL',
+        examScope: validAssignedClasses.length > 0 ? 'CLASSROOM' : 'NATIONAL',
         allowGuests: wizAllowGuests,
         status: 'PUBLISHED',
         showSolutionsAfterFinish: true,
@@ -446,15 +660,15 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
         ownerId: teacherId,
       });
 
-      if (wizClassIds.length > 0) {
-        await setExamClassrooms(newExamId, wizClassIds);
+      if (validAssignedClasses.length > 0) {
+        await setExamClassrooms(newExamId, validAssignedClasses);
       }
 
       setWizTitle('');
       setWizClassIds([]);
       setWizStartsAt('');
       setWizEndsAt('');
-      setOutcomeQuotas({});
+      setWizSubjectSelections({});
       setShowCreator(false);
       setActiveTab('EXAMS');
       setFeedback({
@@ -497,6 +711,14 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowInviteModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-200 text-xs sm:text-sm font-extrabold cursor-pointer transition-colors"
+          >
+            🔑 Davet Kodu
+          </button>
+
           {visibleExams.length > 0 && (
             <button
               type="button"
@@ -548,20 +770,23 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
                 Yeni Sınav Hazırla
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Merkezi soru havuzundan kazanım kotası seçerek saniyeler içinde
-                deneme üret veya kendi JSON dosyanı yükle.
+                Seviye, sınav modu ve müfredat aralığını seçerek saniyeler
+                içinde dengeli deneme üret.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onOpenJsonImport}
-              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
-            >
-              + JSON Dosyasıyla Sınav Yükle →
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={onOpenJsonImport}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+              >
+                + JSON Dosyasıyla Sınav Yükle →
+              </button>
+            )}
           </div>
 
-          <form onSubmit={handleCreateExamFromWizard} className="space-y-4">
+          <form onSubmit={handleCreateExamFromWizard} className="space-y-5">
+            {/* 1. TEMEL BİLGİLER */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -570,7 +795,7 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Örn: 5. Sınıf 1. Ünite Kazanım Denemesi-1"
+                  placeholder="Örn: 5. Sınıf Kasım Sonu Genel Denemesi"
                   value={wizTitle}
                   onChange={(e) => setWizTitle(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-medium focus:border-indigo-500 focus:outline-none"
@@ -618,11 +843,122 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
               </div>
             </div>
 
-            {/* OPSİYONEL ZAMANLI SINAV PENCERESİ */}
+            {/* 2. SINAV MODU + SEVİYE SEÇİMİ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <span className="text-xs font-extrabold text-slate-700 block">
+                  Sınav Modu
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(
+                    [
+                      { id: 'CUSTOM', label: 'Özelleştir' },
+                      { id: 'SINGLE_SUBJECT', label: 'Tek Ders' },
+                      { id: 'LGS', label: 'LGS (Sabit)' },
+                      { id: 'YKS', label: 'YKS (Sabit)' },
+                    ] as { id: ExamPresetMode; label: string }[]
+                  ).map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleSelectPresetMode(m.id)}
+                      className={`py-2 px-2.5 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                        wizPresetMode === m.id
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                          : 'bg-white border-slate-300 text-slate-700 hover:border-indigo-400'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                {wizPresetMode === 'SINGLE_SUBJECT' && (
+                  <div className="pt-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Ders Seçimi
+                    </label>
+                    <select
+                      value={wizSingleSubject}
+                      onChange={(e) => setWizSingleSubject(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800"
+                    >
+                      {availableSubjects.length === 0 ? (
+                        <option value="">Bu seviyede ders bulunamadı</option>
+                      ) : (
+                        availableSubjects.map((sub) => (
+                          <option key={sub} value={sub}>
+                            {sub}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-700">
+                    Katılacak Seviyeler
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    Sınıfları ve dersleri filtreler
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {GRADE_LEVELS.map((lvl) => {
+                    const active = wizLevels.includes(lvl);
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => toggleWizardLevel(lvl)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-extrabold cursor-pointer transition-all ${
+                          active
+                            ? 'bg-slate-900 border-slate-900 text-white'
+                            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400'
+                        }`}
+                      >
+                        {lvl}. Sınıf
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. MÜFREDAT ZAMAN ÇİZELGESİ VE DİKEY DERS KARTLARI */}
+            {loadingPool ? (
+              <p className="text-xs text-slate-500 py-6 text-center">
+                Soru havuzu yükleniyor...
+              </p>
+            ) : (
+              <CurriculumTimelineSelector
+                pool={filteredPoolForWizard}
+                startWeek={wizStartWeek}
+                endWeek={wizEndWeek}
+                onRangeChange={(nextStart, nextEnd) => {
+                  setWizStartWeek(nextStart);
+                  setWizEndWeek(nextEnd);
+                }}
+                subjectSelections={wizSubjectSelections}
+                onSubjectSelectionChange={(subject, next) =>
+                  setWizSubjectSelections((prev) => ({
+                    ...prev,
+                    [subject]: next,
+                  }))
+                }
+                isQuestionCountLocked={isQuestionCountLocked}
+                visibleSubjects={visibleSubjectsForWizard}
+              />
+            )}
+
+            {/* 4. OPSİYONEL ZAMANLI SINAV PENCERESİ */}
             <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-200/80 space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-extrabold text-indigo-950">
-                  Zamanlı Sınav Penceresi (Opsiyonel)
+                  Zamanlı Sınav Penceresi (Başlangıç – Bitiş)
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -677,13 +1013,14 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
               </div>
             </div>
 
-            {/* HANGİ SINIFLARA ATANSIN? */}
+            {/* 5. SEVİYEYE GÖRE FİLTRELENMİŞ SINIF ATAMASI */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-extrabold text-slate-700">
                   Hangi Sınıflarına Atansın?{' '}
                   <span className="font-normal text-slate-500">
-                    (Hiçbiri seçilmezse Türkiye Geneli açılır)
+                    (Seçili seviyelere göre filtrelenir; boş bırakılırsa Türkiye
+                    Geneli açılır)
                   </span>
                 </span>
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
@@ -697,9 +1034,9 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
                 </label>
               </div>
 
-              {classrooms.length > 0 ? (
+              {filteredClassroomsForWizard.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {classrooms.map((c) => {
+                  {filteredClassroomsForWizard.map((c) => {
                     const checked = wizClassIds.includes(c.id);
                     return (
                       <button
@@ -726,96 +1063,9 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
                 </div>
               ) : (
                 <p className="text-xs text-slate-400">
-                  Henüz sınıfın yok; sınav Türkiye Geneli olarak açılacak,
-                  sonradan dilediğin sınıflara atayabilirsin.
+                  Seçili seviyede kayıtlı sınıfın yok; sınav Türkiye Geneli
+                  olarak açılacak.
                 </p>
-              )}
-            </div>
-
-            {/* KAZANIM KOTALARI */}
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
-                  Havuzdan Kazanım Kotası Seç
-                </span>
-                <select
-                  value={wizSubjectFilter}
-                  onChange={(e) => setWizSubjectFilter(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold"
-                >
-                  <option value="ALL">Tüm Dersler</option>
-                  {availableSubjects.map((sub) => (
-                    <option key={sub} value={sub}>
-                      {sub}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {loadingPool ? (
-                <p className="text-xs text-slate-500 py-4 text-center">
-                  Soru havuzu yükleniyor...
-                </p>
-              ) : (
-                <div className="max-h-60 overflow-y-auto divide-y divide-slate-200 rounded-xl border border-slate-200">
-                  {outcomeGroups.map((grp) => {
-                    const selected = outcomeQuotas[grp.outcome_code] ?? 0;
-                    const maxCount = grp.questions.length;
-                    return (
-                      <div
-                        key={grp.outcome_code}
-                        className="p-3 bg-slate-50/40 flex items-center justify-between gap-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
-                              {grp.outcome_code}
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-semibold">
-                              {grp.subject} • {maxCount} soru
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-800 font-medium truncate mt-0.5">
-                            {grp.outcome_title}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOutcomeQuotas((prev) => ({
-                                ...prev,
-                                [grp.outcome_code]: Math.max(0, selected - 1),
-                              }))
-                            }
-                            className="w-7 h-7 rounded-lg border border-slate-300 bg-white font-black text-slate-700 hover:bg-slate-100 cursor-pointer"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center text-xs font-black text-slate-900">
-                            {selected}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOutcomeQuotas((prev) => ({
-                                ...prev,
-                                [grp.outcome_code]: Math.min(
-                                  maxCount,
-                                  selected + 1
-                                ),
-                              }))
-                            }
-                            className="w-7 h-7 rounded-lg border border-slate-300 bg-white font-black text-slate-700 hover:bg-slate-100 cursor-pointer"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               )}
             </div>
 
@@ -1237,6 +1487,143 @@ export const TeacherLobby: React.FC<TeacherLobbyProps> = ({
             </div>
           )}
         </section>
+      )}
+
+      {/* =================================================================== */}
+      {/* ÖĞRETMEN DAVET KODU MODALI (TEK KULLANIMLIK + SÜRELİ)               */}
+      {/* =================================================================== */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 block">
+                  Meslektaş Daveti
+                </span>
+                <h2 className="text-base font-extrabold mt-0.5">
+                  Öğretmen Davet Kodu
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Ürettiğin her kod <strong>tek kullanımlıktır</strong> ve seçilen
+                süre dolduğunda otomatik geçersiz olur. Kodu paylaştığın öğretmen
+                kayıt olurken doğrudan onaylanır.
+              </p>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={inviteHours}
+                  onChange={(e) => setInviteHours(Number(e.target.value))}
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800"
+                >
+                  <option value={24}>24 Saat Geçerli</option>
+                  <option value={48}>48 Saat Geçerli</option>
+                  <option value={72}>72 Saat Geçerli</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={creatingInvite}
+                  onClick={handleCreateTeacherInvite}
+                  className="flex-1 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 text-xs font-black cursor-pointer transition-colors"
+                >
+                  {creatingInvite ? 'Üretiliyor...' : '+ Yeni Davet Kodu Üret'}
+                </button>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <h3 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Son Ürettiğin Kodlar ({invites.length})
+                </h3>
+
+                {loadingInvites ? (
+                  <p className="text-xs text-slate-400 py-4 text-center">
+                    Yükleniyor...
+                  </p>
+                ) : invites.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4 text-center">
+                    Henüz öğretmen davet kodu üretmedin.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {invites.map((inv) => {
+                      const isUsed = Boolean(inv.used_at);
+                      const isExpired =
+                        !isUsed &&
+                        new Date(inv.expires_at).getTime() <= Date.now();
+                      const isActive = !isUsed && !isExpired;
+                      const isCopied = copiedKey === `invite-${inv.id}`;
+
+                      return (
+                        <div
+                          key={inv.id}
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
+                            isActive
+                              ? 'bg-amber-50/60 border-amber-200'
+                              : 'bg-slate-50 border-slate-200 opacity-75'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-black tracking-wider text-slate-900">
+                                {inv.code}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                  isActive
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : isUsed
+                                      ? 'bg-indigo-100 text-indigo-800'
+                                      : 'bg-slate-200 text-slate-600'
+                                }`}
+                              >
+                                {isActive
+                                  ? 'Aktif'
+                                  : isUsed
+                                    ? 'Kullanıldı'
+                                    : 'Süresi Doldu'}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              {isUsed && inv.used_at
+                                ? `Kullanım: ${formatInviteDate(inv.used_at)}`
+                                : `Son geçerlilik: ${formatInviteDate(inv.expires_at)}`}
+                            </p>
+                          </div>
+
+                          {isActive && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCopy(`invite-${inv.id}`, inv.code)
+                              }
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer shrink-0 transition-colors ${
+                                isCopied
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-white'
+                              }`}
+                            >
+                              {isCopied ? '✓ Kopyalandı' : 'Kopyala'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* =================================================================== */}

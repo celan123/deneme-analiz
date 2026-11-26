@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
@@ -37,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(isSupabaseConfigured);
+  const loadedUserIdRef = useRef<string | null>(null);
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return;
@@ -47,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       .single();
 
     if (!error && data) {
+      loadedUserIdRef.current = userId;
       setProfile(data as UserProfile);
     }
   }, []);
@@ -69,12 +72,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
+      (event, nextSession) => {
         setSession(nextSession);
-        if (nextSession?.user) {
-          void loadProfile(nextSession.user.id);
-        } else {
+
+        const nextUserId = nextSession?.user?.id ?? null;
+        if (!nextUserId) {
+          loadedUserIdRef.current = null;
           setProfile(null);
+          return;
+        }
+
+        // Aynı kullanıcıda sekme dönüşü / token yenilemesinde profili tekrar çekip state'i sarsma
+        if (
+          event === 'TOKEN_REFRESHED' &&
+          loadedUserIdRef.current === nextUserId
+        ) {
+          return;
+        }
+
+        if (loadedUserIdRef.current !== nextUserId) {
+          void loadProfile(nextUserId);
         }
       }
     );
@@ -114,6 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
+    loadedUserIdRef.current = null;
     setProfile(null);
   };
 
