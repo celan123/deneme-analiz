@@ -10,6 +10,7 @@ import {
   updatePoolQuestion,
   updateUserRole,
 } from '../services/adminService';
+import { ReviewTrackingTab } from './ReviewTrackingTab';
 import { fetchAllExams } from '../services/examService';
 import {
   fetchAllQuestionReviews,
@@ -32,7 +33,7 @@ interface AdminPanelProps {
   onExamsChanged: (focusExamId?: string) => Promise<void>;
 }
 
-type AdminTab = 'POOL' | 'EXAMS' | 'USERS';
+type AdminTab = 'POOL' | 'EXAMS' | 'USERS' | 'REVIEWS';
 
 const OPTION_KEYS: ValidOption[] = ['A', 'B', 'C', 'D'];
 
@@ -229,6 +230,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleTabChange = (nextTab: AdminTab) => {
     setHoveredQuestion(null);
     setActiveTab(nextTab);
+  };
+
+  const handleOpenQuestionFromReview = (questionId: string) => {
+    const found = pool.find((q) => q.id === questionId);
+    if (!found) {
+      setFeedback({
+        type: 'err',
+        text: `Soru havuzda bulunamadı (${questionId}).`,
+      });
+      return;
+    }
+    setActiveTab('POOL');
+    setHoveredQuestion(null);
+    setEditingQuestion(found);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleImportToPool = async () => {
@@ -546,6 +562,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           3. Kullanıcı & Rol Yönetimi ({profiles.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('REVIEWS')}
+          className={`flex-1 min-w-[180px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition-all ${
+            activeTab === 'REVIEWS'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          4. İnceleme Takibi ({reviews.length})
         </button>
       </div>
 
@@ -1338,6 +1365,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODÜL 4: ÖĞRETMEN İNCELEME TAKİBİ                                   */}
+      {/* =================================================================== */}
+      {activeTab === 'REVIEWS' && (
+        <section>
+          <ReviewTrackingTab onSelectQuestion={handleOpenQuestionFromReview} />
         </section>
       )}
     </div>
