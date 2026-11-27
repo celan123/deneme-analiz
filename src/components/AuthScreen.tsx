@@ -310,7 +310,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={
                   mode === 'LOGIN'
-                    ? 'E-posta veya Kullanıcı Adı (Örn: GOKMEN)'
+                    ? 'E-posta veya Kullanıcı Adı'
                     : 'ornek@okul.edu.tr'
                 }
                 className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:border-indigo-500 focus:outline-none"
