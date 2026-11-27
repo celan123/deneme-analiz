@@ -371,7 +371,26 @@ function App() {
       />
     );
   }
+const isTeacherOnly = profile?.role === 'teacher';
 
+  if ((isReviewRoute || isTeacherOnly) && user) {
+    return (
+      <QuestionReviewPanel
+        userId={user.id}
+        profile={profile}
+        onProfileUpdated={refreshProfile}
+        onExit={
+          isTeacherOnly
+            ? undefined
+            : () => {
+                window.history.pushState({}, '', '/');
+                setIsReviewRoute(false);
+              }
+        }
+        onSignOut={signOut}
+      />
+    );
+  }
   if (isSupabaseConfigured && !user) {
     return (
       <AuthScreen
