@@ -29,6 +29,17 @@ export interface ValidatedQuestion {
 export const REQUIRED_OPTIONS: ValidOption[] = ['A', 'B', 'C', 'D'];
 export const MIN_SVG_FONT_SIZE = 18;
 export const MIN_SVG_ASPECT_RATIO = 2.1;
+/**
+ * Çember, üçgen, açı gibi doğası gereği kareye yakın geometrik şekiller için
+ * gevşetilmiş oran. Kök <svg> etiketinde data-geometri="true" olmalıdır.
+ * (2,1 zorlanırsa şekil ekranda küçülür ve okunurluk düşer.)
+ */
+export const MIN_SVG_ASPECT_RATIO_GEOMETRY = 1.5;
+
+export function isGeometrySvg(svg: string): boolean {
+  const open = svg.match(/<svg\b[^>]*>/i)?.[0] ?? '';
+  return /\sdata-geometri\s*=\s*["']true["']/i.test(open);
+}
 
 /** "MAT.5.1.1" -> 5, "FB.6.1.3, FB.6.1.4" -> 6, "DYS.DO.5.8" -> 5 */
 export function inferGradeFromOutcomeCode(code?: string | null): number | null {
@@ -89,10 +100,14 @@ function checkSvg(svg: string, issues: QuestionIssue[]) {
     const h = Number(vb[2]);
     if (h > 0) {
       const ratio = w / h;
-      if (ratio < MIN_SVG_ASPECT_RATIO) {
+      const geometry = isGeometrySvg(code);
+      const minRatio = geometry ? MIN_SVG_ASPECT_RATIO_GEOMETRY : MIN_SVG_ASPECT_RATIO;
+      if (ratio < minRatio) {
         issues.push({
           level: 'error',
-          message: `SVG oranı ${ratio.toFixed(2)} (${w}×${h}); en az ${MIN_SVG_ASPECT_RATIO} olmalı (yatay çizim).`,
+          message: geometry
+            ? `Geometri SVG oranı ${ratio.toFixed(2)} (${w}×${h}); en az ${MIN_SVG_ASPECT_RATIO_GEOMETRY} olmalı.`
+            : `SVG oranı ${ratio.toFixed(2)} (${w}×${h}); en az ${MIN_SVG_ASPECT_RATIO} olmalı (yatay çizim). Çember/üçgen/açı gibi geometrik şekillerde <svg data-geometri="true"> ile en az ${MIN_SVG_ASPECT_RATIO_GEOMETRY} yeterli.`,
         });
       }
     }
