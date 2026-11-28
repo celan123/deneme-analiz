@@ -1,6 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { fetchPoolFingerprintMap } from '../services/adminService';
 import { createExamFromAgentJson } from '../services/examService';
 import type { AgentQuestionInput, ValidOption } from '../types/exam';
+import { validateAgentQuestions } from '../utils/questionValidator';
+import { ImportValidationReport } from './ImportValidationReport';
 import { SvgPreview } from './SvgPreview';
 
 interface ExamImportViewProps {
@@ -34,52 +37,70 @@ export const ExamImportView: React.FC<ExamImportViewProps> = ({
   const [saving, setSaving] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Yapıştırılan JSON'u canlı olarak ayrıştır ve doğrula
+  // Kopya kontrolü için havuzdaki soruların parmak izleri
+  const [poolFingerprints, setPoolFingerprints] = useState<Map<
+    string,
+    string
+  > | null>(null);
+
+  useEffect(() => {
+    if (!isLiveDb) return;
+    let cancelled = false;
+    fetchPoolFingerprintMap()
+      .then((map) => {
+        if (!cancelled) setPoolFingerprints(map);
+      })
+      .catch(() => {
+        // Havuz okunamazsa kopya kontrolü olmadan devam et
+        if (!cancelled) setPoolFingerprints(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLiveDb]);
+
+  // Yapıştırılan JSON'u canlı olarak ayrıştır ve kurallara göre doğrula
   const parseResult = useMemo(() => {
     if (!rawJson.trim()) {
-      return { questions: [] as AgentQuestionInput[], error: null as string | null };
+      return {
+        questions: [] as AgentQuestionInput[],
+        validation: [] as ReturnType<typeof validateAgentQuestions>,
+        error: null as string | null,
+      };
     }
-
 
     try {
       const parsed = JSON.parse(cleanJsonText(rawJson));
-      const list = Array.isArray(parsed) ? parsed : [parsed];
+      const list: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
 
       if (list.length === 0) {
-        return { questions: [], error: 'JSON dizisi boş görünüyor.' };
+        return { questions: [], validation: [], error: 'JSON dizisi boş görünüyor.' };
       }
 
-      for (let i = 0; i < list.length; i++) {
-        const item = list[i];
-        if (!item || typeof item !== 'object') {
-          return { questions: [], error: `${i + 1}. soru geçerli bir nesne değil.` };
-        }
-        if (!item.soruMetni || !item.secenekler || !item.dogruCevap) {
-          return {
-            questions: [],
-            error: `${i + 1}. soruda zorunlu alanlardan biri eksik (soruMetni, secenekler veya dogruCevap).`,
-          };
-        }
-      }
-
-      return { questions: list as AgentQuestionInput[], error: null };
+      const validation = validateAgentQuestions(list, poolFingerprints ?? new Map());
+      return {
+        questions: validation.map((v) => v.question),
+        validation,
+        error: null,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Geçersiz JSON formatı.';
-      return { questions: [], error: `JSON ayrıştırma hatası: ${msg}` };
+      return { questions: [], validation: [], error: `JSON ayrıştırma hatası: ${msg}` };
     }
-  }, [rawJson]);
-const missingSvgCount = useMemo(
-    () =>
-      parseResult.questions.filter(
-        (q) =>
-          q.gorselGerekliMi &&
-          !(typeof q.svgKodu === 'string' && q.svgKodu.includes('<svg'))
-      ).length,
-    [parseResult.questions]
-  );
+  }, [rawJson, poolFingerprints]);
+
+  const invalidCount = parseResult.validation.filter((v) => !v.isValid).length;
+  const canSave =
+    isLiveDb &&
+    !saving &&
+    poolFingerprints !== null &&
+    parseResult.questions.length > 0 &&
+    invalidCount === 0 &&
+    title.trim().length > 0;
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLiveDb || parseResult.questions.length === 0 || !title.trim()) return;
+    if (!canSave) return;
 
     setSaving(true);
     setSaveError(null);
@@ -90,6 +111,7 @@ const missingSvgCount = useMemo(
         examDate,
         wrongPenaltyRatio: penaltyRatio,
         agentQuestions: parseResult.questions,
+        existingPoolIds: parseResult.validation.map((v) => v.existingPoolId),
       });
       onExamCreated(newExamId);
     } catch (err) {
@@ -221,6 +243,20 @@ const missingSvgCount = useMemo(
                 {parseResult.error}
               </p>
             )}
+
+            <div className="mt-3">
+              <ImportValidationReport
+                results={parseResult.validation}
+                mode="exam"
+                checkingPool={isLiveDb && poolFingerprints === null}
+              />
+              {invalidCount > 0 && (
+                <p className="mt-2 text-xs font-semibold text-rose-700">
+                  Sınavı kaydetmek için kurallara uymayan {invalidCount} soruyu
+                  JSON'da düzeltin veya çıkarın.
+                </p>
+              )}
+            </div>
           </div>
 
           {saveError && (
@@ -233,12 +269,7 @@ const missingSvgCount = useMemo(
           <div className="flex items-center justify-end gap-3">
             <button
               type="submit"
-              disabled={
-                !isLiveDb ||
-                saving ||
-                parseResult.questions.length === 0 ||
-                !title.trim()
-              }
+              disabled={!canSave}
               className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition-colors cursor-pointer"
             >
               {saving
@@ -255,15 +286,9 @@ const missingSvgCount = useMemo(
           <h2 className="text-sm font-extrabold text-slate-700 uppercase tracking-wider px-1">
             Canlı Soru ve SVG Önizleme ({parseResult.questions.length} Soru)
           </h2>
-{missingSvgCount > 0 && (
-            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800">
-              Dikkat: {missingSvgCount} soruda görsel gerekli işaretlenmiş ancak
-              geçerli SVG kodu bulunamadı. Ajan çıktısını kod bloğu içinden
-              kopyaladığından emin ol.
-            </div>
-          )}
           {parseResult.questions.map((q, idx) => {
-            
+            const issues = parseResult.validation[idx]?.issues ?? [];
+
             const distractorCount = q.celdiriciAnalizi
               ? Object.keys(q.celdiriciAnalizi).length
               : 0;
@@ -297,13 +322,23 @@ const missingSvgCount = useMemo(
                   )}
                 </div>
                   <SvgPreview svgCode={q.svgKodu} />
-{q.gorselGerekliMi &&
-                  !(typeof q.svgKodu === 'string' && q.svgKodu.includes('<svg')) && (
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
-                      Görsel eksik: Bu soru için gorselGerekliMi = true ancak
-                      geçerli &lt;svg&gt; etiketi bulunamadı.
-                    </div>
-                  )}
+                {issues.length > 0 && (
+                  <ul className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                    {issues.map((issue, i) => (
+                      <li
+                        key={i}
+                        className={
+                          issue.level === 'error'
+                            ? 'text-rose-700 font-semibold'
+                            : 'text-amber-700'
+                        }
+                      >
+                        {issue.level === 'error' ? '✕ ' : '! '}
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-sm font-semibold text-slate-900 leading-relaxed whitespace-pre-line">
                   {q.soruMetni}
                 </p>

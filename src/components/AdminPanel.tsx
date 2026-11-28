@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   deletePoolQuestion,
   fetchAllProfiles,
+  fetchPoolFingerprintMap,
   fetchQuestionPool,
   importQuestionsToPool,
   updatePoolQuestion,
@@ -12,11 +13,9 @@ import {
   type AdminQuestionReviewRow,
 } from '../services/questionReviewService';
 import type { UserProfile, UserRole } from '../types/auth';
-import type {
-  AgentQuestionInput,
-  PoolQuestion,
-  ValidOption,
-} from '../types/exam';
+import type { PoolQuestion, ValidOption } from '../types/exam';
+import { validateAgentQuestions } from '../utils/questionValidator';
+import { ImportValidationReport } from './ImportValidationReport';
 import { QuestionHoverPreview } from './QuestionHoverPreview';
 import { ReviewTrackingTab } from './ReviewTrackingTab';
 import { SvgPreview } from './SvgPreview';
@@ -57,6 +56,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showJsonImporter, setShowJsonImporter] = useState<boolean>(false);
   const [rawPoolJson, setRawPoolJson] = useState<string>('');
   const [importingPool, setImportingPool] = useState<boolean>(false);
+  const [poolFingerprints, setPoolFingerprints] = useState<Map<
+    string,
+    string
+  > | null>(null);
 
   // CANLI SORU DÜZENLEME VE HOVER ÖNİZLEME STATE'LERİ
   const [editingQuestion, setEditingQuestion] = useState<PoolQuestion | null>(
@@ -90,6 +93,52 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
+
+  // JSON ekleme açıldığında kopya kontrolü için havuz parmak izlerini çek
+  useEffect(() => {
+    if (!showJsonImporter || poolFingerprints) return;
+    let cancelled = false;
+    fetchPoolFingerprintMap()
+      .then((map) => {
+        if (!cancelled) setPoolFingerprints(map);
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setFeedback({
+            type: 'err',
+            text: `Kopya kontrolü için havuz okunamadı: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showJsonImporter, poolFingerprints]);
+
+  // Yapıştırılan JSON'u canlı ayrıştır ve kurallara göre doğrula
+  const poolImport = useMemo(() => {
+    if (!rawPoolJson.trim()) return { results: [], parseError: null };
+    try {
+      const parsed = JSON.parse(cleanJsonText(rawPoolJson));
+      const list: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+      return {
+        results: validateAgentQuestions(list, poolFingerprints ?? new Map()),
+        parseError: list.length === 0 ? 'JSON dizisi boş.' : null,
+      };
+    } catch (err) {
+      return {
+        results: [],
+        parseError: `JSON ayrıştırma hatası: ${
+          err instanceof Error ? err.message : 'geçersiz format'
+        }`,
+      };
+    }
+  }, [rawPoolJson, poolFingerprints]);
+
+  const poolImportReady = poolImport.results.filter(
+    (r) => r.isValid && !r.existingPoolId
+  );
 
   // Havuzdaki benzersiz sınıf ve dersler
   const availableGrades = useMemo(() => {
@@ -168,50 +217,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleImportToPool = async () => {
-    if (!rawPoolJson.trim()) return;
+    if (!rawPoolJson.trim() || !poolFingerprints) return;
     setImportingPool(true);
     setFeedback(null);
 
     try {
-      const parsed = JSON.parse(cleanJsonText(rawPoolJson));
-      const list = (
-        Array.isArray(parsed) ? parsed : [parsed]
-      ) as AgentQuestionInput[];
-      if (list.length === 0) throw new Error('JSON dizisi boş.');
-
-      const validQuestions: AgentQuestionInput[] = [];
-      const brokenSvgIds: string[] = [];
-
-      list.forEach((item, idx) => {
-        const needsSvg = Boolean(item.gorselGerekliMi);
-        const hasValidSvg =
-          typeof item.svgKodu === 'string' && item.svgKodu.includes('<svg');
-
-        if (needsSvg && !hasValidSvg) {
-          brokenSvgIds.push(item.id || `#${idx + 1}`);
-        } else {
-          validQuestions.push(item);
-        }
-      });
-
-      if (validQuestions.length === 0) {
+      if (poolImport.parseError) throw new Error(poolImport.parseError);
+      if (poolImportReady.length === 0) {
         throw new Error(
-          `Hiçbir soru eklenmedi. Bozuk SVG nedeniyle atlananlar: ${brokenSvgIds.join(', ')}`
+          'Eklenecek soru yok: tüm sorular ya kurallara uymuyor ya da havuzda zaten var.'
         );
       }
 
+      const skippedErrors = poolImport.results.filter((r) => !r.isValid);
+      const skippedExisting = poolImport.results.filter(
+        (r) => r.isValid && r.existingPoolId
+      );
+
       const addedCount = await importQuestionsToPool(
-        validQuestions,
+        poolImportReady.map((r) => r.question),
         currentUserId
       );
+
+      const notes: string[] = [];
+      if (skippedErrors.length > 0)
+        notes.push(
+          `kurallara uymadığı için atlanan ${skippedErrors.length} soru: ${skippedErrors
+            .map((r) => r.label)
+            .join(', ')}`
+        );
+      if (skippedExisting.length > 0)
+        notes.push(`havuzda zaten olan ${skippedExisting.length} soru atlandı`);
+
       setRawPoolJson('');
       setShowJsonImporter(false);
+      setPoolFingerprints(null);
       setFeedback({
-        type: brokenSvgIds.length > 0 ? 'err' : 'ok',
+        type: notes.length > 0 ? 'err' : 'ok',
         text:
-          brokenSvgIds.length > 0
-            ? `${addedCount} sağlam soru havuza eklendi. Bozuk SVG nedeniyle eklenmeyenler (${brokenSvgIds.length}): ${brokenSvgIds.join(', ')}`
-            : `${addedCount} soru Merkezi Soru Havuzuna başarıyla eklendi.`,
+          `${addedCount} soru Merkezi Soru Havuzuna eklendi.` +
+          (notes.length > 0 ? ` Not: ${notes.join('; ')}.` : ''),
       });
       await loadAllData();
     } catch (err) {
@@ -455,14 +500,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   placeholder='[{"id": "MAT5-U1-001", "sinif": 5, ...}]'
                   className="w-full rounded-xl border border-slate-300 p-3 font-mono text-xs bg-white focus:border-indigo-500 focus:outline-none"
                 />
+                {poolImport.parseError && (
+                  <p className="text-xs font-semibold text-rose-600">
+                    {poolImport.parseError}
+                  </p>
+                )}
+                <ImportValidationReport
+                  results={poolImport.results}
+                  mode="pool"
+                  checkingPool={!poolFingerprints}
+                />
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    disabled={importingPool || !rawPoolJson.trim()}
+                    disabled={
+                      importingPool ||
+                      !poolFingerprints ||
+                      poolImportReady.length === 0
+                    }
                     onClick={handleImportToPool}
                     className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
                   >
-                    {importingPool ? 'Ekleniyor...' : 'Soruları Havuza Kaydet'}
+                    {importingPool
+                      ? 'Ekleniyor...'
+                      : `Geçerli ${poolImportReady.length} Soruyu Havuza Kaydet`}
                   </button>
                 </div>
               </div>

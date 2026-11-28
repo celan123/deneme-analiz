@@ -12,6 +12,7 @@ import type {
   ValidOption,
 } from '../types/exam';
 import { generateExamCode } from '../utils/codeGenerator';
+import { inferGradeFromOutcomeCode } from '../utils/questionValidator';
 
 const VALID_OPTIONS: ValidOption[] = ['A', 'B', 'C', 'D', 'E'];
 
@@ -265,21 +266,27 @@ export async function updateStudentGrade(
 /**
  * Soru Ajanı JSON çıktısını hem Merkezi Havuza kaydeder hem de
  * otomatik sınav kodu (SNV-XXXX) ve sınıf seviyesiyle yeni sınava bağlar.
+ * existingPoolIds[i] doluysa i. soru havuza yeniden eklenmez; mevcut havuz
+ * sorusu sınava bağlanır (kopya oluşmasını engeller).
  */
 export async function createExamFromAgentJson(params: {
   title: string;
   examDate: string;
   wrongPenaltyRatio: number;
   agentQuestions: AgentQuestionInput[];
+  existingPoolIds?: (string | null)[];
 }): Promise<string> {
   if (!supabase) {
     throw new Error('Supabase bağlantısı hazır değil.');
   }
 
   const examId = `exam-${Date.now()}`;
+  const gradeOf = (q: AgentQuestionInput) =>
+    typeof q.sinif === 'number'
+      ? q.sinif
+      : inferGradeFromOutcomeCode(q.kazanimKodu);
   const inferredGrade =
-    params.agentQuestions.find((q) => typeof q.sinif === 'number')?.sinif ??
-    null;
+    params.agentQuestions.map(gradeOf).find((g) => g !== null) ?? null;
 
   let inserted = false;
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -308,7 +315,7 @@ export async function createExamFromAgentJson(params: {
     throw new Error('Benzersiz sınav kodu üretilemedi.');
   }
 
-  const poolRows = params.agentQuestions.map((item, idx) => {
+  const allRows = params.agentQuestions.map((item, idx) => {
     const rawCorrect = String(item.dogruCevap ?? 'A')
       .trim()
       .toUpperCase() as ValidOption;
@@ -320,9 +327,9 @@ export async function createExamFromAgentJson(params: {
       typeof item.svgKodu === 'string' && item.svgKodu.includes('<svg');
 
     return {
-      id: `${examId}-q-${idx + 1}`,
+      id: params.existingPoolIds?.[idx] ?? `${examId}-q-${idx + 1}`,
       subject: item.ders?.trim() || 'Genel',
-      grade: typeof item.sinif === 'number' ? item.sinif : null,
+      grade: gradeOf(item),
       unit: item.unite?.trim() || null,
       outcome_code: item.kazanimKodu?.trim() || `KZN-${idx + 1}`,
       outcome_title: item.kazanimAdi?.trim() || 'Kazanım açıklaması girilmedi',
@@ -336,16 +343,20 @@ export async function createExamFromAgentJson(params: {
     };
   });
 
-  const { error: poolError } = await supabase
-    .from('question_pool')
-    .insert(poolRows);
+  const newRows = allRows.filter((_, idx) => !params.existingPoolIds?.[idx]);
 
-  if (poolError) {
-    await supabase.from('exams').delete().eq('id', examId);
-    throw poolError;
+  if (newRows.length > 0) {
+    const { error: poolError } = await supabase
+      .from('question_pool')
+      .insert(newRows);
+
+    if (poolError) {
+      await supabase.from('exams').delete().eq('id', examId);
+      throw poolError;
+    }
   }
 
-  const linkRows = poolRows.map((q, idx) => ({
+  const linkRows = allRows.map((q, idx) => ({
     exam_id: examId,
     question_id: q.id,
     question_number: idx + 1,

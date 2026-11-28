@@ -1,4 +1,8 @@
 import { generateExamCode } from '../utils/codeGenerator';
+import {
+  inferGradeFromOutcomeCode,
+  questionFingerprint,
+} from '../utils/questionValidator';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, UserRole } from '../types/auth';
 import type {
@@ -20,6 +24,33 @@ type AgentQuestionWithWeek = AgentQuestionInput & {
 type PoolQuestionWithWeek = PoolQuestion & {
   curriculum_week?: number | null;
 };
+
+/**
+ * Havuzdaki tüm soruların parmak izi -> soru kimliği eşlemesini döndürür
+ * (kopya tespiti için). Supabase'in 1000 satır sınırına takılmamak için
+ * sayfa sayfa çeker.
+ */
+export async function fetchPoolFingerprintMap(): Promise<Map<string, string>> {
+  if (!supabase) throw new Error('Supabase bağlantısı hazır değil.');
+
+  const map = new Map<string, string>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('question_pool')
+      .select('id, question_text, options')
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    for (const row of data ?? []) {
+      const fp = questionFingerprint(row.question_text, row.options);
+      if (!map.has(fp)) map.set(fp, row.id);
+    }
+    if (!data || data.length < pageSize) break;
+  }
+  return map;
+}
 
 function parseCurriculumWeek(value: unknown): number {
   const num = Number(value);
@@ -71,7 +102,10 @@ export async function importQuestionsToPool(
     return {
       id: `${batchPrefix}-${idx + 1}`,
       subject: item.ders?.trim() || 'Genel',
-      grade: typeof item.sinif === 'number' ? item.sinif : null,
+      grade:
+        typeof item.sinif === 'number'
+          ? item.sinif
+          : inferGradeFromOutcomeCode(item.kazanimKodu),
       unit: item.unite?.trim() || null,
       curriculum_week: curriculumWeek,
       outcome_code: item.kazanimKodu?.trim() || `KZN-${idx + 1}`,
