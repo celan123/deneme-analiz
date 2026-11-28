@@ -88,6 +88,7 @@ export async function submitQuestionReview(params: {
   reviewerId: string;
   decision: ReviewDecision;
   note?: string;
+  durationSeconds?: number;
 }): Promise<void> {
   if (!supabase) throw new Error('Supabase bağlantısı hazır değil.');
 
@@ -97,12 +98,18 @@ export async function submitQuestionReview(params: {
       reviewer_id: params.reviewerId,
       decision: params.decision,
       note: params.note?.trim() || null,
+      duration_seconds:
+        typeof params.durationSeconds === 'number'
+          ? params.durationSeconds
+          : null,
+      updated_at: new Date().toISOString(),
     },
     { onConflict: 'question_id,reviewer_id' }
   );
 
   if (error) throw error;
 }
+
 export async function fetchReviewerCount(reviewerId: string): Promise<number> {
   if (!supabase) return 0;
 
@@ -114,6 +121,7 @@ export async function fetchReviewerCount(reviewerId: string): Promise<number> {
   if (error) return 0;
   return count ?? 0;
 }
+
 export interface AdminQuestionReviewRow {
   id: string;
   question_id: string;
@@ -121,6 +129,8 @@ export interface AdminQuestionReviewRow {
   decision: ReviewDecision;
   note: string | null;
   created_at: string;
+  updated_at?: string | null;
+  duration_seconds?: number | null;
 }
 
 export async function fetchAllQuestionReviews(): Promise<
@@ -130,7 +140,9 @@ export async function fetchAllQuestionReviews(): Promise<
 
   const { data, error } = await supabase
     .from('question_reviews')
-    .select('id, question_id, reviewer_id, decision, note, created_at')
+    .select(
+      'id, question_id, reviewer_id, decision, note, created_at, updated_at, duration_seconds'
+    )
     .order('created_at', { ascending: false });
 
   if (error) throw error;

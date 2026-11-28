@@ -1,17 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  createExamFromPoolSelection,
-  deleteExam,
   deletePoolQuestion,
   fetchAllProfiles,
   fetchQuestionPool,
   importQuestionsToPool,
-  updateExamSettings,
   updatePoolQuestion,
   updateUserRole,
 } from '../services/adminService';
-import { ReviewTrackingTab } from './ReviewTrackingTab';
-import { fetchAllExams } from '../services/examService';
 import {
   fetchAllQuestionReviews,
   type AdminQuestionReviewRow,
@@ -19,13 +14,11 @@ import {
 import type { UserProfile, UserRole } from '../types/auth';
 import type {
   AgentQuestionInput,
-  Exam,
-  ExamScope,
-  ExamStatus,
   PoolQuestion,
   ValidOption,
 } from '../types/exam';
 import { QuestionHoverPreview } from './QuestionHoverPreview';
+import { ReviewTrackingTab } from './ReviewTrackingTab';
 import { SvgPreview } from './SvgPreview';
 
 interface AdminPanelProps {
@@ -33,7 +26,7 @@ interface AdminPanelProps {
   onExamsChanged: (focusExamId?: string) => Promise<void>;
 }
 
-type AdminTab = 'POOL' | 'EXAMS' | 'USERS' | 'REVIEWS';
+type AdminTab = 'POOL' | 'USERS' | 'REVIEWS';
 
 const OPTION_KEYS: ValidOption[] = ['A', 'B', 'C', 'D'];
 
@@ -43,22 +36,12 @@ function cleanJsonText(raw: string): string {
   return fenced ? fenced[1].trim() : trimmed;
 }
 
-function shuffleArray<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   currentUserId,
   onExamsChanged,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('POOL');
   const [pool, setPool] = useState<PoolQuestion[]>([]);
-  const [exams, setExams] = useState<Exam[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [reviews, setReviews] = useState<AdminQuestionReviewRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -84,33 +67,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   );
   const [savingEdit, setSavingEdit] = useState<boolean>(false);
 
-  // SINAV SİHİRBAZI STATE'LERİ
-  const today = new Date().toISOString().slice(0, 10);
-  const [wizTitle, setWizTitle] = useState<string>('');
-  const [wizDate, setWizDate] = useState<string>(today);
-  const [wizScope, setWizScope] = useState<ExamScope>('NATIONAL');
-  const [wizStatus, setWizStatus] = useState<ExamStatus>('PUBLISHED');
-  const [wizPenalty, setWizPenalty] = useState<number>(0.333);
-  const [wizDuration, setWizDuration] = useState<number>(40);
-  const [wizAllowGuests, setWizAllowGuests] = useState<boolean>(true);
-  const [wizShowSolutions, setWizShowSolutions] = useState<boolean>(true);
-  const [wizSubjectFilter, setWizSubjectFilter] = useState<string>('ALL');
-  const [outcomeQuotas, setOutcomeQuotas] = useState<Record<string, number>>(
-    {}
-  );
-  const [creatingExam, setCreatingExam] = useState<boolean>(false);
-
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [poolData, examData, profileData, reviewData] = await Promise.all([
+      const [poolData, profileData, reviewData] = await Promise.all([
         fetchQuestionPool(),
-        fetchAllExams(),
         fetchAllProfiles(),
         fetchAllQuestionReviews(),
       ]);
       setPool(poolData);
-      setExams(examData);
       setProfiles(profileData);
       setReviews(reviewData);
     } catch (err) {
@@ -177,51 +142,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
     return map;
   }, [reviews]);
-
-  // Sınav Sihirbazı için kazanım grupları
-  const outcomeGroups = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        outcome_code: string;
-        outcome_title: string;
-        subject: string;
-        grade: number | null;
-        questions: PoolQuestion[];
-      }
-    >();
-
-    for (const q of pool) {
-      if (wizSubjectFilter !== 'ALL' && q.subject !== wizSubjectFilter) {
-        continue;
-      }
-      let grp = map.get(q.outcome_code);
-      if (!grp) {
-        grp = {
-          outcome_code: q.outcome_code,
-          outcome_title: q.outcome_title,
-          subject: q.subject,
-          grade: q.grade,
-          questions: [],
-        };
-        map.set(q.outcome_code, grp);
-      }
-      grp.questions.push(q);
-    }
-
-    return Array.from(map.values()).sort((a, b) =>
-      a.outcome_code.localeCompare(b.outcome_code, 'tr')
-    );
-  }, [pool, wizSubjectFilter]);
-
-  const totalWizardQuestions = useMemo(
-    () =>
-      Object.values(outcomeQuotas).reduce(
-        (sum, count) => sum + (count > 0 ? count : 0),
-        0
-      ),
-    [outcomeQuotas]
-  );
 
   // =========================================================================
   // AKSİYONLAR
@@ -347,100 +267,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleCreateExamFromWizard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!wizTitle.trim() || totalWizardQuestions === 0) return;
-
-    setCreatingExam(true);
-    setFeedback(null);
-
-    try {
-      const selectedIds: string[] = [];
-
-      for (const grp of outcomeGroups) {
-        const quota = outcomeQuotas[grp.outcome_code] ?? 0;
-        if (quota <= 0) continue;
-        const picked = shuffleArray(grp.questions).slice(
-          0,
-          Math.min(quota, grp.questions.length)
-        );
-        selectedIds.push(...picked.map((q) => q.id));
-      }
-
-      const newExamId = await createExamFromPoolSelection({
-        title: wizTitle,
-        examDate: wizDate,
-        wrongPenaltyRatio: wizPenalty,
-        examScope: wizScope,
-        allowGuests: wizAllowGuests,
-        status: wizStatus,
-        showSolutionsAfterFinish: wizShowSolutions,
-        durationMinutes: wizDuration,
-        questionIds: selectedIds,
-        ownerId: currentUserId,
-      });
-
-      setWizTitle('');
-      setOutcomeQuotas({});
-      setFeedback({
-        type: 'ok',
-        text: `Yeni sınav (${selectedIds.length} soru) havuzdan otomatik oluşturuldu ve sisteme eklendi.`,
-      });
-      await loadAllData();
-      await onExamsChanged(newExamId);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Sınav oluşturulamadı.';
-      setFeedback({ type: 'err', text: msg });
-    } finally {
-      setCreatingExam(false);
-    }
-  };
-
-  const handleExamToggle = async (
-    examId: string,
-    updates: Partial<
-      Pick<
-        Exam,
-        'status' | 'allow_guests' | 'show_solutions_after_finish' | 'exam_scope'
-      >
-    >
-  ) => {
-    try {
-      await updateExamSettings(examId, updates);
-      setExams((prev) =>
-        prev.map((ex) => (ex.id === examId ? { ...ex, ...updates } : ex))
-      );
-      await onExamsChanged();
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Sınav ayarı güncellenemedi.';
-      setFeedback({ type: 'err', text: msg });
-    }
-  };
-
-  const handleDeleteExam = async (examId: string, title: string) => {
-    if (
-      !window.confirm(
-        `"${title}" sınavını silmek istediğine emin misin? (Sorular havuzda korunur.)`
-      )
-    ) {
-      return;
-    }
-    try {
-      await deleteExam(examId);
-      setExams((prev) => prev.filter((e) => e.id !== examId));
-      setFeedback({
-        type: 'ok',
-        text: 'Sınav silindi; soruları Merkezi Havuzda korunmaya devam ediyor.',
-      });
-      await onExamsChanged();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Sınav silinemedi.';
-      setFeedback({ type: 'err', text: msg });
-    }
-  };
-
   const handleRoleChange = async (userId: string, nextRole: UserRole) => {
     try {
       await updateUserRole(userId, nextRole);
@@ -472,11 +298,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             Sistem Yönetim Merkezi
           </span>
           <h1 className="text-2xl font-extrabold mt-2">
-            Admin Paneli — Havuz, Sihirbaz & Yetkiler
+            Admin Paneli — Havuz, İnceleme & Yetkiler
           </h1>
           <p className="text-sm text-slate-300 mt-1">
-            Merkezi soru havuzunu düzenle, kazanım kotalarıyla tek tıkla sınav
-            üret ve kullanıcı rollerini yönet.
+            Merkezi soru havuzunu düzenle, öğretmen incelemelerini takip et ve
+            kullanıcı rollerini yönet.
           </p>
         </div>
 
@@ -491,10 +317,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
           <div className="bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-3 text-center">
             <span className="text-[11px] text-slate-400 font-semibold block">
-              Tanımlı Sınav
+              İnceleme Kaydı
             </span>
             <strong className="text-2xl font-black text-indigo-300">
-              {exams.length}
+              {reviews.length}
             </strong>
           </div>
           <div className="bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-3 text-center">
@@ -543,17 +369,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => handleTabChange('EXAMS')}
-          className={`flex-1 min-w-[180px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition-all ${
-            activeTab === 'EXAMS'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          2. Sınav Sihirbazı & Yayın ({exams.length})
-        </button>
-        <button
-          type="button"
           onClick={() => handleTabChange('USERS')}
           className={`flex-1 min-w-[180px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition-all ${
             activeTab === 'USERS'
@@ -561,7 +376,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          3. Kullanıcı & Rol Yönetimi ({profiles.length})
+          2. Kullanıcı & Rol Yönetimi ({profiles.length})
         </button>
         <button
           type="button"
@@ -572,7 +387,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          4. İnceleme Takibi ({reviews.length})
+          3. İnceleme Takibi ({reviews.length})
         </button>
       </div>
 
@@ -983,326 +798,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* =================================================================== */}
-      {/* MODÜL 2: OTOMATİK SINAV SİHİRBAZI VE MEVCUT SINAV KONTROLÜ          */}
-      {/* =================================================================== */}
-      {activeTab === 'EXAMS' && (
-        <section className="space-y-6">
-          {/* KAZANIM KOTALI SINAV SİHİRBAZI */}
-          <form
-            onSubmit={handleCreateExamFromWizard}
-            className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-5"
-          >
-            <div className="border-b border-slate-100 pb-4">
-              <h2 className="text-lg font-extrabold text-slate-900">
-                Otomatik Sınav Sihirbazı (Kazanım Kotalı Derleyici)
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Aşağıdaki kazanımlardan kaçar soru çekileceğini belirle; sistem
-                havuzdan soruları otomatik seçip sınavı anında hazırlar.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Sınav Başlığı
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Örn: 8. Sınıf Üslü İfadeler Türkiye Geneli Deneme-1"
-                  value={wizTitle}
-                  onChange={(e) => setWizTitle(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Sınav Tarihi
-                </label>
-                <input
-                  type="date"
-                  value={wizDate}
-                  onChange={(e) => setWizDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Kapsam
-                </label>
-                <select
-                  value={wizScope}
-                  onChange={(e) => setWizScope(e.target.value as ExamScope)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"
-                >
-                  <option value="NATIONAL">Türkiye Geneli</option>
-                  <option value="CLASSROOM">Sınıf / Kurum İçi</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Yayın Durumu
-                </label>
-                <select
-                  value={wizStatus}
-                  onChange={(e) => setWizStatus(e.target.value as ExamStatus)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"
-                >
-                  <option value="PUBLISHED">Yayında</option>
-                  <option value="DRAFT">Taslak</option>
-                  <option value="CLOSED">Kapalı</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Yanlış Götürme
-                </label>
-                <select
-                  value={wizPenalty}
-                  onChange={(e) => setWizPenalty(Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"
-                >
-                  <option value={0.333}>3Y 1D (LGS)</option>
-                  <option value={0.25}>4Y 1D (YKS)</option>
-                  <option value={0}>Götürmesiz</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Süre (Dakika)
-                </label>
-                <input
-                  type="number"
-                  min={5}
-                  max={240}
-                  value={wizDuration}
-                  onChange={(e) => setWizDuration(Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-6 pt-1 text-xs font-semibold text-slate-700">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={wizAllowGuests}
-                  onChange={(e) => setWizAllowGuests(e.target.checked)}
-                  className="rounded accent-indigo-600"
-                />
-                Misafir (gölge) öğrenci katılımına izin ver
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={wizShowSolutions}
-                  onChange={(e) => setWizShowSolutions(e.target.checked)}
-                  className="rounded accent-indigo-600"
-                />
-                Sınav bitiminde öğrenciye çözümleri göster
-              </label>
-            </div>
-
-            {/* KAZANIM SEÇİM TABLOSU */}
-            <div className="space-y-3 pt-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
-                  Havuzdaki Kazanımlardan Soru Kotası Seç
-                </h3>
-                <select
-                  value={wizSubjectFilter}
-                  onChange={(e) => setWizSubjectFilter(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold"
-                >
-                  <option value="ALL">Tüm Dersler</option>
-                  {availableSubjects.map((sub) => (
-                    <option key={sub} value={sub}>
-                      {sub}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 overflow-hidden">
-                {outcomeGroups.map((grp) => {
-                  const selected = outcomeQuotas[grp.outcome_code] ?? 0;
-                  const maxCount = grp.questions.length;
-
-                  return (
-                    <div
-                      key={grp.outcome_code}
-                      className="p-3.5 bg-slate-50/40 flex flex-wrap items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
-                            {grp.outcome_code}
-                          </span>
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            {grp.subject} • Havuzda {maxCount} soru var
-                          </span>
-                        </div>
-                        <p className="text-xs font-medium text-slate-800 mt-1 truncate">
-                          {grp.outcome_title}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOutcomeQuotas((prev) => ({
-                              ...prev,
-                              [grp.outcome_code]: Math.max(0, selected - 1),
-                            }))
-                          }
-                          className="w-8 h-8 rounded-lg border border-slate-300 bg-white font-black text-slate-700 hover:bg-slate-100 cursor-pointer"
-                        >
-                          -
-                        </button>
-                        <span className="w-10 text-center text-sm font-black text-slate-900">
-                          {selected}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOutcomeQuotas((prev) => ({
-                              ...prev,
-                              [grp.outcome_code]: Math.min(
-                                maxCount,
-                                selected + 1
-                              ),
-                            }))
-                          }
-                          className="w-8 h-8 rounded-lg border border-slate-300 bg-white font-black text-slate-700 hover:bg-slate-100 cursor-pointer"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={
-                  creatingExam || !wizTitle.trim() || totalWizardQuestions === 0
-                }
-                className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-bold shadow-md shadow-indigo-600/20 cursor-pointer"
-              >
-                {creatingExam
-                  ? 'Sınav Derleniyor...'
-                  : `Sınavı Havuzdan Oluştur (${totalWizardQuestions} Soru)`}
-              </button>
-            </div>
-          </form>
-
-          {/* MEVCUT SINAVLAR YAYIN VE MİSAFİR KONTROL TABLOSU */}
-          <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-            <h2 className="text-lg font-extrabold text-slate-900">
-              Mevcut Sınavlar ve Canlı Yayın Kontrolleri
-            </h2>
-
-            <div className="space-y-3">
-              {exams.map((ex) => (
-                <div
-                  key={ex.id}
-                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-extrabold text-slate-900">
-                        {ex.title}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold uppercase">
-                        {ex.exam_scope === 'CLASSROOM'
-                          ? 'Sınıf İçi'
-                          : 'Türkiye Geneli'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Tarih: {ex.exam_date} • Süre: {ex.duration_minutes ?? 40}{' '}
-                      dk • Götürme: {ex.wrong_penalty_ratio}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
-                    <select
-                      value={ex.status ?? 'PUBLISHED'}
-                      onChange={(e) =>
-                        handleExamToggle(ex.id, {
-                          status: e.target.value as ExamStatus,
-                        })
-                      }
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-800 cursor-pointer"
-                    >
-                      <option value="DRAFT">Taslak</option>
-                      <option value="PUBLISHED">Yayında</option>
-                      <option value="CLOSED">Kapalı</option>
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleExamToggle(ex.id, {
-                          allow_guests: !(ex.allow_guests ?? true),
-                        })
-                      }
-                      className={`px-3 py-1.5 rounded-lg border font-bold cursor-pointer ${
-                        ex.allow_guests ?? true
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                          : 'bg-slate-100 border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      Misafir: {ex.allow_guests ?? true ? 'Açık' : 'Kapalı'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleExamToggle(ex.id, {
-                          show_solutions_after_finish: !(
-                            ex.show_solutions_after_finish ?? true
-                          ),
-                        })
-                      }
-                      className={`px-3 py-1.5 rounded-lg border font-bold cursor-pointer ${
-                        ex.show_solutions_after_finish ?? true
-                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                          : 'bg-slate-100 border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      Çözüm:{' '}
-                      {ex.show_solutions_after_finish ?? true
-                        ? 'Göster'
-                        : 'Gizli'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteExam(ex.id, ex.title)}
-                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold cursor-pointer"
-                    >
-                      Sil
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* =================================================================== */}
-      {/* MODÜL 3: KULLANICI VE ROL YÖNETİMİ                                  */}
+      {/* MODÜL 2: KULLANICI VE ROL YÖNETİMİ                                  */}
       {/* =================================================================== */}
       {activeTab === 'USERS' && (
         <section className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-4">
@@ -1369,7 +865,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* =================================================================== */}
-      {/* MODÜL 4: ÖĞRETMEN İNCELEME TAKİBİ                                   */}
+      {/* MODÜL 3: ÖĞRETMEN İNCELEME TAKİBİ                                   */}
       {/* =================================================================== */}
       {activeTab === 'REVIEWS' && (
         <section>

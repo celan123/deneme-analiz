@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchAvailablePoolSubjects,
   fetchUnreviewedQuestions,
@@ -52,6 +52,10 @@ export const QuestionReviewPanel: React.FC<QuestionReviewPanelProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Aktif inceleme süresi sayacı (ekran kapanınca / sekme değişince durur)
+  const accumulatedMsRef = useRef<number>(0);
+  const activeStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchAvailablePoolSubjects()
@@ -112,6 +116,39 @@ export const QuestionReviewPanel: React.FC<QuestionReviewPanelProps> = ({
 
   const currentQuestion = filteredQuestions[currentIdx] ?? null;
 
+  // Her yeni soruda süreyi sıfırla
+  useEffect(() => {
+    accumulatedMsRef.current = 0;
+    activeStartRef.current =
+      currentQuestion && !document.hidden ? Date.now() : null;
+  }, [currentQuestion?.id]);
+
+  // Sekme arka plana atıldığında / ekran kilitlendiğinde süreyi duraklat
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (activeStartRef.current !== null) {
+          accumulatedMsRef.current += Date.now() - activeStartRef.current;
+          activeStartRef.current = null;
+        }
+      } else if (currentQuestion) {
+        activeStartRef.current = Date.now();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentQuestion]);
+
+  const getElapsedSeconds = (): number => {
+    const runningMs =
+      activeStartRef.current !== null ? Date.now() - activeStartRef.current : 0;
+    const totalMs = accumulatedMsRef.current + runningMs;
+    return Math.max(1, Math.round(totalMs / 1000));
+  };
+
   const handleSelectSubject = async (subject: string) => {
     setSelectedSubject(subject);
     try {
@@ -127,12 +164,15 @@ export const QuestionReviewPanel: React.FC<QuestionReviewPanelProps> = ({
     setSubmitting(true);
     setError(null);
 
+    const durationSeconds = getElapsedSeconds();
+
     try {
       await submitQuestionReview({
         questionId: currentQuestion.id,
         reviewerId: userId,
         decision,
         note,
+        durationSeconds,
       });
 
       const votedId = currentQuestion.id;
@@ -239,7 +279,8 @@ export const QuestionReviewPanel: React.FC<QuestionReviewPanelProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-slate-400 font-semibold">
-              Toplam incelemen: <strong className="text-white">{reviewedTotal}</strong> soru
+              Toplam incelemen:{' '}
+              <strong className="text-white">{reviewedTotal}</strong> soru
             </p>
           </div>
 
