@@ -339,6 +339,17 @@ function App() {
       try {
         await submitStudentExam(newStudent, newAnswers, user?.id);
         await refreshExamListOnly();
+
+        // Katılım kaydı oluştuktan sonra get_exam_results diğer katılımcıların
+        // (maskeli) sonuçlarını döndürür; sıralama tablosu için veriyi tazele.
+        const submittedExamId = newAnswers[0]?.exam_id;
+        if (submittedExamId) {
+          try {
+            setDataset(await fetchExamDataset(submittedExamId));
+          } catch {
+            // Sıralama tazelenemezse yerel veriyle devam et
+          }
+        }
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Cevaplar kaydedilemedi.';

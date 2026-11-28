@@ -91,7 +91,10 @@ export async function fetchExamDataset(examId: string): Promise<ExamDataset> {
     throw new Error('Supabase ortam değişkenleri (.env.local) tanımlı değil.');
   }
 
-  const [examRes, linksRes, answersRes, participationsRes, classLinksRes] =
+  // Öğrenci/cevap/katılım verisi RLS ile kapalı; get_exam_results RPC'si
+  // öğretmen/admin'e tam veriyi, öğrenciye yalnızca katıldığı sınavda
+  // maskeli ad + anonim kimlikle diğer katılımcıların sonuçlarını döndürür.
+  const [examRes, linksRes, resultsRes, classLinksRes] =
     await Promise.all([
       supabase
         .from('exams')
@@ -105,11 +108,7 @@ export async function fetchExamDataset(examId: string): Promise<ExamDataset> {
         .select('question_number, question:question_pool(*)')
         .eq('exam_id', examId)
         .order('question_number', { ascending: true }),
-      supabase.from('student_answers').select('*').eq('exam_id', examId),
-      supabase
-        .from('exam_participations')
-        .select('student_id, participation_type, school_name')
-        .eq('exam_id', examId),
+      supabase.rpc('get_exam_results', { p_exam_id: examId }),
       supabase
         .from('exam_classrooms')
         .select('classroom_id')
@@ -118,21 +117,12 @@ export async function fetchExamDataset(examId: string): Promise<ExamDataset> {
 
   if (examRes.error) throw examRes.error;
   if (linksRes.error) throw linksRes.error;
-  if (answersRes.error) throw answersRes.error;
+  if (resultsRes.error) throw resultsRes.error;
 
-  const participationMap = new Map<
-    string,
-    { participation_type: ParticipationType; school_name: string | null }
-  >();
-  if (!participationsRes.error && participationsRes.data) {
-    for (const row of participationsRes.data) {
-      participationMap.set(row.student_id, {
-        participation_type:
-          (row.participation_type as ParticipationType) ?? 'OFFICIAL',
-        school_name: row.school_name ?? null,
-      });
-    }
-  }
+  const results = (resultsRes.data ?? {}) as {
+    students?: Student[];
+    answers?: StudentAnswer[];
+  };
 
   const questions: Question[] = [];
   for (const row of linksRes.data ?? []) {
@@ -160,26 +150,13 @@ export async function fetchExamDataset(examId: string): Promise<ExamDataset> {
     });
   }
 
-  const answers = (answersRes.data ?? []) as StudentAnswer[];
-  const studentIds = Array.from(new Set(answers.map((a) => a.student_id)));
-  let students: Student[] = [];
-
-  if (studentIds.length > 0) {
-    const studentsRes = await supabase
-      .from('students')
-      .select('id, full_name, classroom')
-      .in('id', studentIds);
-
-    if (studentsRes.error) throw studentsRes.error;
-    students = ((studentsRes.data ?? []) as Student[]).map((s) => {
-      const part = participationMap.get(s.id);
-      return {
-        ...s,
-        participation_type: part?.participation_type ?? 'OFFICIAL',
-        school_name: part?.school_name ?? null,
-      };
-    });
-  }
+  const answers = results.answers ?? [];
+  const students: Student[] = (results.students ?? []).map((s) => ({
+    ...s,
+    participation_type:
+      (s.participation_type as ParticipationType | undefined) ?? 'OFFICIAL',
+    school_name: s.school_name ?? null,
+  }));
 
   const examRow = examRes.data as Exam;
   const linkedClassIds =
